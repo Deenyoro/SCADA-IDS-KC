@@ -92,7 +92,19 @@ jobs:
         echo "- **Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY
         echo "- **Wine Version:** $(wine --version 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
 
-        if [ $BUILD_EXIT_CODE -eq 0 ]; then
+        # Check if executable was actually created (critical verification)
+        if [ -f "dist/SCADA-IDS-KC.exe" ]; then
+          EXECUTABLE_SIZE=$(stat -c%s "dist/SCADA-IDS-KC.exe" 2>/dev/null || echo "0")
+          echo "- **Executable:** ✅ Created (${EXECUTABLE_SIZE} bytes)" >> $GITHUB_STEP_SUMMARY
+          echo "EXECUTABLE_VERIFIED=true" >> $GITHUB_ENV
+        else
+          echo "- **Executable:** ❌ NOT FOUND" >> $GITHUB_STEP_SUMMARY
+          echo "EXECUTABLE_VERIFIED=false" >> $GITHUB_ENV
+          # Force failure even if build reported success
+          BUILD_EXIT_CODE=1
+        fi
+
+        if [ $BUILD_EXIT_CODE -eq 0 ] && [ "${EXECUTABLE_VERIFIED:-false}" = "true" ]; then
           echo "- **Status:** ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
         else
           echo "- **Status:** ❌ FAILED" >> $GITHUB_STEP_SUMMARY
@@ -104,6 +116,18 @@ jobs:
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         find . -name "*.exe" -o -name "*.log" -o -name "*.txt" | head -20 >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+        # Additional debugging for missing executable
+        if [ "${EXECUTABLE_VERIFIED:-false}" = "false" ]; then
+          echo "### Debug Information" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "Contents of dist/:" >> $GITHUB_STEP_SUMMARY
+          ls -la dist/ 2>/dev/null || echo "dist/ directory not found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Contents of build/:" >> $GITHUB_STEP_SUMMARY
+          ls -la build/ 2>/dev/null || echo "build/ directory not found" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        fi
 
         exit $BUILD_EXIT_CODE
         

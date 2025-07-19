@@ -12,6 +12,16 @@ import signal
 import sys
 
 try:
+    # Suppress Scapy warnings about missing optional features
+    import warnings
+    warnings.filterwarnings("ignore", message="Wireshark is installed")
+    warnings.filterwarnings("ignore", message="cannot read manuf")
+    
+    # Configure Scapy before import to disable unnecessary features
+    import scapy.config
+    scapy.config.conf.use_pcap = True  # Use libpcap/npcap
+    scapy.config.conf.sniff_promisc = True  # Enable promiscuous mode
+    
     import scapy.all as scapy
     from scapy.layers.inet import IP, TCP
     from scapy.error import Scapy_Exception

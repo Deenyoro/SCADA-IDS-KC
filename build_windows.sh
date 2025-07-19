@@ -595,15 +595,15 @@ EOF
 
 if wine python.exe -m PyInstaller --onefile --name test_minimal test_minimal.py --distpath dist_test --workpath build_test 2>&1 | tee "logs/pyinstaller_test.log"; then
     if [[ -f "dist_test/test_minimal.exe" ]]; then
-        log_info "✅ PyInstaller test successful - basic functionality works"
+        log_info "OK PyInstaller test successful - basic functionality works"
         rm -rf dist_test/ build_test/ test_minimal.py test_minimal.spec 2>/dev/null || true
     else
-        log_error "❌ PyInstaller test failed - basic functionality broken"
+        log_error "FAIL PyInstaller test failed - basic functionality broken"
         log_error "Test output: $(cat logs/pyinstaller_test.log | tail -20)"
         exit 1
     fi
 else
-    log_error "❌ PyInstaller test failed to run"
+    log_error "FAIL PyInstaller test failed to run"
     exit 1
 fi
 
@@ -616,38 +616,38 @@ sys.path.insert(0, 'src')
 print("Testing critical imports...")
 try:
     import main
-    print("✅ main.py imports successfully")
+    print("OK main.py imports successfully")
 except Exception as e:
-    print(f"❌ main.py import failed: {e}")
+    print(f"FAIL main.py import failed: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
 
 try:
     from scada_ids.settings import get_settings
-    print("✅ scada_ids.settings imports successfully")
+    print("OK scada_ids.settings imports successfully")
 except Exception as e:
-    print(f"❌ scada_ids.settings import failed: {e}")
+    print(f"FAIL scada_ids.settings import failed: {e}")
     import traceback
     traceback.print_exc()
 
 try:
     import PyQt6.QtCore
-    print("✅ PyQt6 imports successfully")
+    print("OK PyQt6 imports successfully")
 except Exception as e:
-    print(f"❌ PyQt6 import failed: {e}")
+    print(f"FAIL PyQt6 import failed: {e}")
 
 try:
     import sklearn
-    print("✅ sklearn imports successfully")
+    print("OK sklearn imports successfully")
 except Exception as e:
-    print(f"❌ sklearn import failed: {e}")
+    print(f"FAIL sklearn import failed: {e}")
 
 print("Import testing completed")
 EOF
 
 if [[ $? -ne 0 ]]; then
-    log_error "❌ Main application imports failed - cannot proceed with build"
+    log_error "FAIL Main application imports failed - cannot proceed with build"
     exit 1
 fi
 
@@ -673,16 +673,16 @@ if [[ "$build_success" == "false" ]]; then
 
         # Verify the build actually produced an executable
         if [[ -f "dist/SCADA-IDS-KC.exe" ]]; then
-            log_info "✅ Basic command-line build succeeded and produced executable"
+            log_info "OK Basic command-line build succeeded and produced executable"
             build_success=true
         else
-            log_warn "❌ Basic build completed but no executable found"
+            log_warn "FAIL Basic build completed but no executable found"
             log_warn "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
             log_warn "Last 20 lines of build log:"
             tail -20 "logs/pyinstaller_basic.log" || echo "No log available"
         fi
     else
-        log_warn "❌ Basic command-line build failed, trying spec files..."
+        log_warn "FAIL Basic command-line build failed, trying spec files..."
     fi
 fi
 
@@ -746,20 +746,47 @@ if [[ "$build_success" == "false" ]]; then
     fi
 fi
 
-if [[ "$build_success" == "true" ]]; then
-    log_info "OK PyInstaller build completed successfully"
-    log_info "Final verification of build output..."
-    log_info "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
-    log_info "Contents of build/: $(ls -la build/ 2>/dev/null || echo 'empty')"
-else
-    log_error "FAIL All PyInstaller build approaches failed"
+# Final verification - MANDATORY executable check (ignore build_success flag)
+log_info "Final verification of build output..."
+log_info "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
+log_info "Contents of build/: $(ls -la build/ 2>/dev/null || echo 'empty')"
+
+# Force failure if no executable exists, regardless of build_success flag
+if [[ ! -f "dist/SCADA-IDS-KC.exe" ]]; then
+    log_error "❌ CRITICAL FAILURE: No executable found at dist/SCADA-IDS-KC.exe"
+    log_error "Build may have reported success but no executable was created!"
+    log_error "This indicates a silent PyInstaller failure."
+
     log_error "Debug information:"
-    log_error "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
-    log_error "Contents of build/: $(ls -la build/ 2>/dev/null || echo 'empty')"
-    log_error "PyInstaller logs:"
-    find logs/ -name "pyinstaller_*.log" -exec echo "=== {} ===" \; -exec tail -20 {} \; 2>/dev/null || echo "No PyInstaller logs found"
+    log_error "All files in dist/: $(find dist/ -type f 2>/dev/null || echo 'No files')"
+    log_error "All files in build/: $(find build/ -type f -name '*.log' 2>/dev/null | head -10 || echo 'No log files')"
+
+    log_error "PyInstaller logs (last 30 lines each):"
+    find logs/ -name "pyinstaller_*.log" -exec echo "=== {} ===" \; -exec tail -30 {} \; 2>/dev/null || echo "No PyInstaller logs found"
+
+    log_error "Wine Python test:"
+    wine python.exe --version 2>&1 || echo "Wine Python not working"
+
+    log_error "PyInstaller version:"
+    wine python.exe -m pip show pyinstaller 2>&1 || echo "PyInstaller not found"
+
+    # Create failure marker for GitHub Actions
+    echo "EXECUTABLE_CREATED=false" > build_failure.env
+    echo "FAILURE_REASON=No executable created despite build process completing" >> build_failure.env
+
     exit 1
 fi
+
+# If we get here, executable exists
+exe_size=$(stat -c%s "dist/SCADA-IDS-KC.exe" 2>/dev/null || echo "0")
+if [[ "$exe_size" -lt 10000000 ]]; then  # Less than 10MB is suspicious for our app
+    log_warn "⚠️ WARNING: Executable size is only $exe_size bytes - this seems too small"
+    log_warn "Expected size should be 50MB+ for a full application with ML libraries"
+fi
+
+log_info "✅ PyInstaller build completed successfully"
+log_info "Executable created: dist/SCADA-IDS-KC.exe ($exe_size bytes)"
+echo "EXECUTABLE_CREATED=true" > build_success.env
 
 # STEP 10: Verify TRUE Windows build
 log_step "STEP 10: Verifying TRUE Windows PE executable"

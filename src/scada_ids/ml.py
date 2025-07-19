@@ -260,10 +260,12 @@ class MLDetector:
                 
                 # Apply scaling if available with error handling
                 try:
-                    if self.scaler is not None:
-                        feature_array = self.scaler.transform(feature_array.reshape(1, -1))
-                    else:
-                        feature_array = feature_array.reshape(1, -1)
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore", message="X does not have valid feature names")
+                        if self.scaler is not None:
+                            feature_array = self.scaler.transform(feature_array.reshape(1, -1))
+                        else:
+                            feature_array = feature_array.reshape(1, -1)
                 except Exception as e:
                     logger.error(f"Feature scaling error: {e}")
                     self._error_count += 1
@@ -273,7 +275,8 @@ class MLDetector:
                 # Get prediction probability with timeout protection
                 try:
                     with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")  # Suppress sklearn warnings
+                        warnings.simplefilter("ignore")  # Suppress all sklearn warnings
+                        warnings.filterwarnings("ignore", message="X does not have valid feature names")
                         
                         if hasattr(self.model, 'predict_proba'):
                             # Get probability of positive class (threat)
@@ -487,11 +490,13 @@ class MLDetector:
                 else:
                     test_array = test_array.reshape(1, -1)
                 
-                # Try a prediction to validate compatibility
-                if hasattr(self.model, 'predict_proba'):
-                    _ = self.model.predict_proba(test_array)
-                else:
-                    _ = self.model.predict(test_array)
+                # Try a prediction to validate compatibility with warnings suppressed
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message="X does not have valid feature names")
+                    if hasattr(self.model, 'predict_proba'):
+                        _ = self.model.predict_proba(test_array)
+                    else:
+                        _ = self.model.predict(test_array)
                 
                 logger.info("Model compatibility test passed")
                 return True
