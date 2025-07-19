@@ -204,19 +204,39 @@ fi
 # STEP 3: Create and setup virtual environment
 log_step "STEP 3: Setting up Python virtual environment"
 
-log_info "Creating virtual environment..."
-if [[ ! -d ".venv" ]]; then
-    run_cmd "Creating virtual environment" python3 -m venv .venv
+# Check if we can create venv, if not use system python with user installs
+log_info "Checking virtual environment capability..."
+if python3 -m venv test_env_check 2>/dev/null && rm -rf test_env_check; then
+    log_info "Creating virtual environment..."
+    if [[ ! -d ".venv" ]]; then
+        run_cmd "Creating virtual environment" python3 -m venv .venv
+    else
+        log_info "Virtual environment already exists"
+    fi
+    
+    log_info "Activating virtual environment..."
+    source .venv/bin/activate
+    
+    log_info "Upgrading pip and build tools..."
+    run_cmd "Upgrading pip" python -m pip install --upgrade pip
+    run_cmd "Installing build tools" pip install --upgrade setuptools wheel
 else
-    log_info "Virtual environment already exists"
+    log_warn "Virtual environment not available (missing python3-venv or ensurepip)"
+    log_warn "Using system Python with --user installs instead"
+    log_info "To fix: sudo apt install python3-venv python3-pip"
+    
+    # Clean up any failed venv attempt
+    rm -rf test_env_check .venv 2>/dev/null || true
+    
+    # Use system python with user installs
+    export PIP_USER=1
+    export PYTHONUSERBASE="$HOME/.local"
+    export PATH="$PYTHONUSERBASE/bin:$PATH"
+    
+    log_info "Upgrading pip and build tools (user install)..."
+    run_cmd "Upgrading pip" python3 -m pip install --user --upgrade pip
+    run_cmd "Installing build tools" python3 -m pip install --user --upgrade setuptools wheel
 fi
-
-log_info "Activating virtual environment..."
-source .venv/bin/activate
-
-log_info "Upgrading pip and build tools..."
-run_cmd "Upgrading pip" python -m pip install --upgrade pip
-run_cmd "Installing build tools" pip install --upgrade setuptools wheel
 
 # STEP 4: Install dependencies
 log_step "STEP 4: Installing Python dependencies"
@@ -224,7 +244,11 @@ log_step "STEP 4: Installing Python dependencies"
 if [[ "$OFFLINE_MODE" == "true" ]]; then
     if [[ -d "requirements.offline" ]]; then
         log_info "Installing from offline wheels..."
-        run_cmd "Installing offline dependencies" pip install --no-index --find-links requirements.offline -r requirements.txt
+        if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+            run_cmd "Installing offline dependencies" pip install --no-index --find-links requirements.offline -r requirements.txt
+        else
+            run_cmd "Installing offline dependencies" python3 -m pip install --user --no-index --find-links requirements.offline -r requirements.txt
+        fi
     else
         log_error "Offline mode requested but requirements.offline directory not found"
         exit 1
@@ -232,45 +256,59 @@ if [[ "$OFFLINE_MODE" == "true" ]]; then
 else
     log_info "Installing dependencies for Windows target..."
     
+    # Determine pip command based on environment
+    if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+        PIP_CMD="pip"
+    else
+        PIP_CMD="python3 -m pip install --user"
+    fi
+    
     # Install core dependencies first with Windows-specific wheels where needed
     log_info "Installing core packages..."
-    run_cmd "Installing numpy" pip install "numpy==1.26.4"
-    run_cmd "Installing pandas" pip install "pandas==2.2.2"
-    run_cmd "Installing PyYAML" pip install "PyYAML==6.0.1"
+    run_cmd "Installing numpy" $PIP_CMD "numpy==1.26.4"
+    run_cmd "Installing pandas" $PIP_CMD "pandas==2.2.2"
+    run_cmd "Installing PyYAML" $PIP_CMD "PyYAML==6.0.1"
     
     # Install ML packages
     log_info "Installing ML packages..."
-    run_cmd "Installing scikit-learn" pip install "scikit-learn==1.5.0"
-    run_cmd "Installing joblib" pip install "joblib==1.5.0"
+    run_cmd "Installing scikit-learn" $PIP_CMD "scikit-learn==1.5.0"
+    run_cmd "Installing joblib" $PIP_CMD "joblib==1.5.0"
     
     # Install GUI packages
     log_info "Installing GUI packages..."
-    run_cmd "Installing PyQt6" pip install "PyQt6==6.7.0"
+    run_cmd "Installing PyQt6" $PIP_CMD "PyQt6==6.7.0"
     
     # Install network packages
     log_info "Installing network packages..."
-    run_cmd "Installing scapy" pip install "scapy==2.5.0"
+    run_cmd "Installing scapy" $PIP_CMD "scapy==2.5.0"
     
     # Install notification packages
     log_info "Installing notification packages..."
-    run_cmd "Installing plyer" pip install "plyer==2.1.0"
-    run_cmd "Installing win10toast" pip install "win10toast-click==0.1.3"
+    run_cmd "Installing plyer" $PIP_CMD "plyer==2.1.0"
+    # Skip win10toast-click as it may have issues, install basic win10toast instead
+    if ! run_cmd "Installing win10toast" timeout 300 $PIP_CMD "win10toast" 2>/dev/null; then
+        log_warn "Failed to install win10toast, continuing without it"
+    fi
     
     # Install build and utility packages
     log_info "Installing build packages..."
-    run_cmd "Installing pydantic" pip install "pydantic==2.7.1"
-    run_cmd "Installing PyInstaller" pip install "pyinstaller==6.6.0"
-    run_cmd "Installing psutil" pip install "psutil==5.9.8"
-    run_cmd "Installing colorlog" pip install "colorlog==6.8.2"
+    run_cmd "Installing pydantic" $PIP_CMD "pydantic==2.7.1"
+    run_cmd "Installing PyInstaller" $PIP_CMD "pyinstaller==6.6.0"
+    run_cmd "Installing psutil" $PIP_CMD "psutil==5.9.8"
+    run_cmd "Installing colorlog" $PIP_CMD "colorlog==6.8.2"
     
     # Install test packages
     log_info "Installing test packages..."
-    run_cmd "Installing pytest" pip install "pytest==8.2.2"
-    run_cmd "Installing pytest-qt" pip install "pytest-qt==4.4.0"
+    run_cmd "Installing pytest" $PIP_CMD "pytest==8.2.2"
+    run_cmd "Installing pytest-qt" $PIP_CMD "pytest-qt==4.4.0"
     
     # Final requirements install to catch any missed dependencies
     log_info "Installing from requirements.txt (final pass)..."
-    run_cmd "Installing requirements.txt" pip install -r requirements.txt
+    if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+        run_cmd "Installing requirements.txt" pip install -r requirements.txt
+    else
+        run_cmd "Installing requirements.txt" python3 -m pip install --user -r requirements.txt
+    fi
 fi
 
 # STEP 5: Verify installation
@@ -387,10 +425,14 @@ else
     log_warn "pyrcc6 not available or resources.qrc not found, skipping Qt resource compilation"
 fi
 
-# Verify PyInstaller spec file
-if [[ ! -f "packaging/skada.spec" ]]; then
-    log_error "PyInstaller spec file not found: packaging/skada.spec"
+# Verify PyInstaller spec files
+if [[ ! -f "packaging/skada_windows.spec" ]]; then
+    log_error "Windows PyInstaller spec file not found: packaging/skada_windows.spec"
     exit 1
+fi
+
+if [[ ! -f "packaging/skada.spec" ]]; then
+    log_warn "Original spec file not found, using Windows-specific spec only"
 fi
 
 # STEP 8: Build Windows executable
@@ -402,13 +444,55 @@ export PYTHONPATH="$SCRIPT_DIR/src"
 # Ensure dist directory exists
 mkdir -p dist
 
-log_info "Running PyInstaller for Windows target..."
-run_cmd "Building Windows executable" pyinstaller packaging/skada.spec \
-    --noconfirm \
-    --clean \
-    --log-level INFO \
-    --distpath dist \
-    --workpath build
+# Try Wine-based Windows build first if Wine is available
+if [[ "$WINE_AVAILABLE" == "true" ]]; then
+    log_info "Attempting Wine-based Windows cross-compilation..."
+    
+    # Initialize Wine prefix if not exists
+    export WINEPREFIX="$HOME/.wine_skada"
+    if [[ ! -d "$WINEPREFIX" ]]; then
+        log_info "Initializing Wine prefix..."
+        run_cmd "Initializing Wine" winecfg /v win10 2>/dev/null || true
+    fi
+    
+    # Check if Windows Python is available in Wine
+    if wine python.exe --version >/dev/null 2>&1; then
+        log_info "Found Windows Python in Wine, using for true cross-compilation..."
+        
+        # Install PyInstaller in Wine if needed
+        wine python.exe -m pip install pyinstaller >/dev/null 2>&1 || true
+        
+        # Try Windows build with Wine
+        if wine python.exe -m PyInstaller packaging/skada_windows.spec --noconfirm --clean --log-level ERROR 2>/dev/null; then
+            log_info "Wine-based Windows build successful!"
+        else
+            log_warn "Wine-based build failed, falling back to Linux build with Windows target"
+            # Fallback to Linux PyInstaller with Windows-optimized spec
+            run_cmd "Building with Windows target spec" pyinstaller packaging/skada_windows.spec \
+                --noconfirm \
+                --clean \
+                --log-level INFO \
+                --distpath dist \
+                --workpath build
+        fi
+    else
+        log_warn "Windows Python not found in Wine, using Linux PyInstaller with Windows spec"
+        run_cmd "Building Windows executable" pyinstaller packaging/skada_windows.spec \
+            --noconfirm \
+            --clean \
+            --log-level INFO \
+            --distpath dist \
+            --workpath build
+    fi
+else
+    log_info "Running PyInstaller for Windows target with optimized spec..."
+    run_cmd "Building Windows executable" pyinstaller packaging/skada_windows.spec \
+        --noconfirm \
+        --clean \
+        --log-level INFO \
+        --distpath dist \
+        --workpath build
+fi
 
 # STEP 9: Verify build
 log_step "STEP 9: Verifying build output"
