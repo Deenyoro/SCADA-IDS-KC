@@ -38,8 +38,7 @@ jobs:
           cabextract \
           p7zip-full \
           unzip \
-          winbind \
-          winbind:i386
+          winbind
         echo "✅ Wine GUI and Winetricks dependencies installed"
 
     - name: Start virtual X server for Wine GUI support
