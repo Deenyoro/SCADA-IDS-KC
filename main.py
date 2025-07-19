@@ -8,6 +8,7 @@ import sys
 import os
 import argparse
 import logging
+import logging.config
 import json
 from pathlib import Path
 
@@ -39,7 +40,6 @@ def setup_logging(log_level: str = "INFO", log_file: str = None):
     
     if log_config_path.exists():
         try:
-            import logging.config
             with open(log_config_path) as f:
                 config = json.load(f)
             logging.config.dictConfig(config)
@@ -62,10 +62,24 @@ def setup_logging(log_level: str = "INFO", log_file: str = None):
 def check_system_requirements():
     """Check if system meets requirements for running SCADA-IDS-KC."""
     issues = []
+    warnings = []
     
     # Check Python version
     if sys.version_info < (3, 8):
         issues.append(f"Python 3.8+ required, found {sys.version}")
+    
+    # Check packet capture capabilities on Windows
+    if sys.platform == "win32":
+        try:
+            import scapy.all as scapy
+            # Try to detect if npcap/winpcap is available
+            try:
+                scapy.get_if_list()  # This will trigger libpcap warnings if missing
+            except Exception:
+                warnings.append("Npcap/WinPcap not detected. Install Npcap for packet capture functionality.")
+                warnings.append("Download from: https://nmap.org/npcap/")
+        except ImportError:
+            issues.append("Scapy not available for packet capture")
     
     # Check required modules
     required_modules = [
@@ -89,9 +103,9 @@ def check_system_requirements():
     try:
         import plyer
     except ImportError:
-        print("Warning: plyer not available, cross-platform notifications may not work")
+        warnings.append("plyer not available, cross-platform notifications may not work")
     
-    return issues
+    return issues, warnings
 
 
 def run_gui_mode():
@@ -385,7 +399,16 @@ Examples:
         logger.info("SCADA-IDS-KC starting...")
         
         # Check system requirements
-        issues = check_system_requirements()
+        issues, warnings = check_system_requirements()
+        
+        # Display warnings
+        if warnings:
+            print("System warnings:")
+            for warning in warnings:
+                print(f"  WARNING: {warning}")
+            print()
+        
+        # Display errors and exit if any
         if issues:
             print("System requirements not met:")
             for issue in issues:
