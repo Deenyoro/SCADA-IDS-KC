@@ -25,6 +25,8 @@ MANIFEST
 
 # PyInstaller
 *.manifest
+# Auto-generated spec files (keep only the ones in packaging/)
+/*.spec
 
 # Virtual environments
 .env
