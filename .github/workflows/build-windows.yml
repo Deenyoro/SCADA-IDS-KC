@@ -128,6 +128,47 @@ jobs:
           echo "Contents of build/:" >> $GITHUB_STEP_SUMMARY
           ls -la build/ 2>/dev/null || echo "build/ directory not found" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+          # Show critical diagnostic results directly in GitHub Actions summary
+          echo "### Critical Diagnostic Results" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+          # PyInstaller import test result
+          if [ -f "logs/pyinstaller_import_test.log" ]; then
+            echo "PyInstaller Import Test:" >> $GITHUB_STEP_SUMMARY
+            cat logs/pyinstaller_import_test.log >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # PyInstaller CLI test result
+          if [ -f "logs/pyinstaller_help_test.log" ]; then
+            echo "PyInstaller CLI Test:" >> $GITHUB_STEP_SUMMARY
+            head -5 logs/pyinstaller_help_test.log >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Ultra minimal test result
+          if [ -f "logs/ultra_minimal_test.log" ]; then
+            echo "Ultra Minimal Test Result:" >> $GITHUB_STEP_SUMMARY
+            tail -10 logs/ultra_minimal_test.log >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Python verification result
+          if [ -f "logs/python_verification.log" ]; then
+            echo "Python Verification:" >> $GITHUB_STEP_SUMMARY
+            cat logs/python_verification.log >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Environment dump key info
+          if [ -f "logs/environment_dump.log" ]; then
+            echo "Environment Summary:" >> $GITHUB_STEP_SUMMARY
+            grep -A 5 "PYTHON ENVIRONMENT\|PYINSTALLER ENVIRONMENT" logs/environment_dump.log >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         fi
 
         exit $BUILD_EXIT_CODE
@@ -331,6 +372,47 @@ jobs:
         prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Alternative native Windows build for comparison (if Wine build fails)
+  build-windows-native:
+    runs-on: windows-latest
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Test PyInstaller on native Windows (comparison)
+      run: |
+        echo "🔍 Testing PyInstaller on native Windows for comparison..."
+        pip install "pyinstaller>=6.14,<7"
+
+        # Create simple test
+        echo 'print("Hello from native Windows PyInstaller!")' > test_native.py
+
+        # Test PyInstaller
+        pyinstaller --onefile --name test_native test_native.py
+
+        if (Test-Path "dist/test_native.exe") {
+          echo "✅ PyInstaller works on native Windows"
+          echo "Executable size: $((Get-Item 'dist/test_native.exe').Length) bytes"
+        } else {
+          echo "❌ PyInstaller also fails on native Windows"
+        }
+
+    - name: Upload native Windows test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-windows-test-${{ github.sha }}
+        path: |
+          dist/
+          build/
+        retention-days: 1
+        if-no-files-found: warn
 
   test-windows:
     runs-on: windows-latest

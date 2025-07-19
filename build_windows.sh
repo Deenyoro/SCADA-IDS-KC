@@ -1034,6 +1034,29 @@ if [[ ! -f "dist/SCADA-IDS-KC.exe" ]]; then
     log_error "Build may have reported success but no executable was created!"
     log_error "This indicates a silent PyInstaller failure."
 
+    # Output critical diagnostic summary to console for immediate visibility
+    log_error "=== CRITICAL DIAGNOSTIC SUMMARY ==="
+
+    # PyInstaller import test
+    if [[ -f "logs/pyinstaller_import_test.log" ]]; then
+        log_error "PyInstaller Import Test:"
+        cat "logs/pyinstaller_import_test.log" | head -5
+    fi
+
+    # Ultra minimal test
+    if [[ -f "logs/ultra_minimal_test.log" ]]; then
+        log_error "Ultra Minimal Test (last 5 lines):"
+        tail -5 "logs/ultra_minimal_test.log"
+    fi
+
+    # Python verification
+    if [[ -f "logs/python_verification.log" ]]; then
+        log_error "Python Verification:"
+        cat "logs/python_verification.log"
+    fi
+
+    log_error "=== END DIAGNOSTIC SUMMARY ==="
+
     log_error "Debug information:"
     log_error "All files in dist/: $(find dist/ -type f 2>/dev/null || echo 'No files')"
     log_error "All files in build/: $(find build/ -type f -name '*.log' 2>/dev/null | head -10 || echo 'No log files')"
