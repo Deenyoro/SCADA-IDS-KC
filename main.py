@@ -117,15 +117,31 @@ def check_system_requirements():
 
 def run_gui_mode():
     """Run the application in GUI mode."""
+    logger = logging.getLogger("scada_ids.main")
     try:
         from PyQt6.QtWidgets import QApplication
         from ui.main_window import MainWindow
+        from ui.requirements_dialog import show_requirements_dialog
+        from scada_ids.system_checker import check_system_requirements as check_detailed_requirements
         
         # Create Qt application
         app = QApplication(sys.argv)
         app.setApplicationName("SCADA-IDS-KC")
         app.setApplicationVersion("1.0.0")
         app.setOrganizationName("SCADA Security")
+        
+        # Check system requirements before showing main window
+        is_ready, status, missing = check_detailed_requirements()
+        
+        if missing:
+            logger.info(f"Missing requirements detected: {missing}")
+            # Show requirements dialog
+            result = show_requirements_dialog(missing, status)
+            if result != 1:  # User chose to exit
+                logger.info("User chose to exit due to missing requirements")
+                return 0
+            else:
+                logger.warning("User chose to continue with missing requirements")
         
         # Create and show main window
         window = MainWindow()
@@ -992,7 +1008,7 @@ Examples:
         
         logger.info("SCADA-IDS-KC starting...")
         
-        # Check system requirements
+        # Check system requirements (basic check for CLI)
         issues, warnings = check_system_requirements()
         
         # Display warnings
