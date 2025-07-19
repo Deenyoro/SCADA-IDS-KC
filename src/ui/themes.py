@@ -409,10 +409,9 @@ QWidget {
 
 /* Group Boxes */
 QGroupBox {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #3e3e42, stop: 1 #2d2d30);
-    border: 2px solid #555555;
-    border-radius: 8px;
+    background-color: #2d2d30;
+    border: 1px solid #404040;
+    border-radius: 6px;
     margin-top: 10px;
     padding-top: 10px;
     font-weight: bold;
@@ -430,28 +429,25 @@ QGroupBox::title {
 
 /* Buttons */
 QPushButton {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #4a4a4a, stop: 1 #3a3a3a);
-    border: 1px solid #555555;
-    border-radius: 6px;
+    background-color: #3c3c3c;
+    border: 1px solid #505050;
+    border-radius: 4px;
     padding: 6px 12px;
     color: #ffffff;
-    font-weight: bold;
+    font-weight: 500;
     font-size: 10px;
     min-height: 20px;
     max-height: 28px;
 }
 
 QPushButton:hover {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #5a5a5a, stop: 1 #4a4a4a);
-    border-color: #777777;
+    background-color: #4a4a4a;
+    border-color: #606060;
 }
 
 QPushButton:pressed {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #2a2a2a, stop: 1 #1a1a1a);
-    border-color: #999999;
+    background-color: #2a2a2a;
+    border-color: #404040;
 }
 
 QPushButton:disabled {
@@ -462,28 +458,24 @@ QPushButton:disabled {
 
 /* Start Button */
 QPushButton#startButton {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #198754, stop: 1 #146c43);
+    background-color: #198754;
     color: white;
     border-color: #146c43;
 }
 
 QPushButton#startButton:hover {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #20c997, stop: 1 #198754);
+    background-color: #20c997;
 }
 
 /* Stop Button */
 QPushButton#stopButton {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #dc3545, stop: 1 #b02a37);
+    background-color: #dc3545;
     color: white;
     border-color: #b02a37;
 }
 
 QPushButton#stopButton:hover {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #e35d6a, stop: 1 #dc3545);
+    background-color: #e35d6a;
 }
 
 /* Combo Boxes */
@@ -649,9 +641,8 @@ QTabWidget::pane {
 }
 
 QTabBar::tab {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #3a3a3a, stop: 1 #2a2a2a);
-    border: 1px solid #555555;
+    background-color: #323232;
+    border: 1px solid #505050;
     border-bottom: none;
     border-radius: 4px 4px 0 0;
     padding: 6px 12px;
@@ -661,14 +652,13 @@ QTabBar::tab {
 }
 
 QTabBar::tab:selected {
-    background: #2d2d30;
+    background-color: #2d2d30;
     color: #0078d4;
     border-bottom: 2px solid #0078d4;
 }
 
 QTabBar::tab:hover {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #4a4a4a, stop: 1 #3a3a3a);
+    background-color: #3a3a3a;
 }
 
 /* Scroll Bars */
@@ -720,8 +710,7 @@ QProgressBar {
 }
 
 QProgressBar::chunk {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-        stop: 0 #198754, stop: 1 #146c43);
+    background-color: #198754;
     border-radius: 3px;
 }
 

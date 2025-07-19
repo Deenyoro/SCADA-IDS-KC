@@ -227,6 +227,20 @@ class ConfigSection(QWidget):
                     )
                     return widget
                 
+                # Theme selection
+                elif option == 'theme':
+                    widget = QComboBox()
+                    themes = ['light', 'dark']
+                    widget.addItems(themes)
+                    if str(value).lower() in themes:
+                        widget.setCurrentText(str(value).lower())
+                    widget.currentTextChanged.connect(
+                        lambda text, opt=option: self.value_changed.emit(
+                            self.section_name, opt, text
+                        )
+                    )
+                    return widget
+                
                 # Long text values (BPF filters, etc.)
                 elif len(str(value)) > 50 or 'filter' in option:
                     widget = QTextEdit()

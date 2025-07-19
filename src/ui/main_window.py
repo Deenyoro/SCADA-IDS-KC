@@ -320,30 +320,32 @@ class MainWindow(QMainWindow):
         logo_path = self.settings.get_resource_path("logo.png")
         if logo_path.exists():
             pixmap = QPixmap(str(logo_path))
-            # Scale logo to fit nicely in header (height of 40 pixels)
-            scaled_pixmap = pixmap.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation)
+            # Scale logo to fit nicely in header (height of 69 pixels for readable text)
+            scaled_pixmap = pixmap.scaledToHeight(69, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled_pixmap)
             logo_label.setStyleSheet("QLabel { margin-right: 10px; }")
         layout.addWidget(logo_label)
         
         # System status indicators
         self.system_status_label = QLabel("⚪ System Ready")
-        self.system_status_label.setStyleSheet("QLabel { font-size: 14px; font-weight: bold; }")
+        self.system_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; }")
         layout.addWidget(self.system_status_label)
         
         layout.addStretch()
         
         # ML Model status
         self.ml_status_label = QLabel("🧠 ML: Not Loaded")
+        self.ml_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; }")
         layout.addWidget(self.ml_status_label)
         
         # Network status
         self.network_status_label = QLabel("🌐 Network: Inactive")
+        self.network_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; }")
         layout.addWidget(self.network_status_label)
         
         # Threat level indicator
         self.threat_level_label = QLabel("🟢 Threat Level: LOW")
-        self.threat_level_label.setStyleSheet("QLabel { color: #00ff88; font-weight: bold; }")
+        self.threat_level_label.setStyleSheet("QLabel { color: #00ff88; font-weight: bold; font-size: 16px; }")
         layout.addWidget(self.threat_level_label)
         
         return group

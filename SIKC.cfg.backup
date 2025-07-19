@@ -4,7 +4,7 @@
 # Values can be modified here, through the GUI, or via CLI commands.
 # The system will automatically reload changes made to this file.
 # 
-# Generated: 2025-07-19 16:56:52
+# Generated: 2025-07-19 17:42:14
 # 
 # Boolean values: yes/no, true/false, 1/0
 # Lists: comma-separated values
@@ -25,7 +25,7 @@ error_threshold = 100
 error_cooldown = 300
 
 [detection]
-prob_threshold = 0.03
+prob_threshold = 0.06
 window_seconds = 120
 max_queue_size = 10000
 model_path = models/syn_model.joblib
