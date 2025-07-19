@@ -321,7 +321,6 @@ class FeatureExtractor:
             else:
                 features['syn_packet_ratio'] = 0.0
             
-            
             return features
             
         except Exception as e:

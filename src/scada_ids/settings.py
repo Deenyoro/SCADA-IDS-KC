@@ -1,10 +1,12 @@
 """
-Configuration management using Pydantic with YAML support and environment variable overrides.
+Configuration management using Pydantic with SIKC.cfg and YAML support.
+Priority: SIKC.cfg > YAML > defaults
 """
 
 import logging
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 
@@ -30,6 +32,8 @@ except ImportError:
     validator = lambda *args, **kwargs: lambda f: f
     PYDANTIC_AVAILABLE = False
 
+# Import SIKC configuration system
+from .sikc_config import get_sikc_config
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +46,27 @@ class NetworkSettings(BaseSettings):
     capture_timeout: int = Field(1, description="Capture timeout in seconds", ge=1, le=60)
     
     def __init__(self, **kwargs):
+        # Load from SIKC.cfg first, then override with any kwargs
+        try:
+            sikc = get_sikc_config()
+            sikc_values = {
+                'interface': sikc.get('network', 'interface', None),
+                'bpf_filter': sikc.get('network', 'bpf_filter', "tcp and tcp[13]=2"),
+                'promiscuous_mode': sikc.get('network', 'promiscuous_mode', True),
+                'capture_timeout': sikc.get('network', 'capture_timeout', 1),
+            }
+            # Override with provided kwargs
+            sikc_values.update(kwargs)
+            kwargs = sikc_values
+        except Exception as e:
+            logger.debug(f"Could not load SIKC config for network settings: {e}")
+        
         super().__init__(**kwargs)
         if not PYDANTIC_AVAILABLE:
-            self.interface = None
-            self.bpf_filter = "tcp and tcp[13]=2"
-            self.promiscuous_mode = True
-            self.capture_timeout = 1
+            self.interface = kwargs.get('interface', None)
+            self.bpf_filter = kwargs.get('bpf_filter', "tcp and tcp[13]=2")
+            self.promiscuous_mode = kwargs.get('promiscuous_mode', True)
+            self.capture_timeout = kwargs.get('capture_timeout', 1)
 
     @validator('bpf_filter')
     def validate_bpf_filter(cls, v: str) -> str:
@@ -81,13 +100,29 @@ class DetectionSettings(BaseSettings):
     scaler_path: str = Field("models/syn_scaler.joblib", description="Path to feature scaler")
     
     def __init__(self, **kwargs):
+        # Load from SIKC.cfg first, then override with any kwargs
+        try:
+            sikc = get_sikc_config()
+            sikc_values = {
+                'prob_threshold': sikc.get('detection', 'prob_threshold', 0.05),
+                'window_seconds': sikc.get('detection', 'window_seconds', 60),
+                'max_queue_size': sikc.get('detection', 'max_queue_size', 10000),
+                'model_path': sikc.get('detection', 'model_path', "models/syn_model.joblib"),
+                'scaler_path': sikc.get('detection', 'scaler_path', "models/syn_scaler.joblib"),
+            }
+            # Override with provided kwargs
+            sikc_values.update(kwargs)
+            kwargs = sikc_values
+        except Exception as e:
+            logger.debug(f"Could not load SIKC config for detection settings: {e}")
+        
         super().__init__(**kwargs)
         if not PYDANTIC_AVAILABLE:
-            self.prob_threshold = 0.7
-            self.window_seconds = 60
-            self.max_queue_size = 10000
-            self.model_path = "models/syn_model.joblib"
-            self.scaler_path = "models/syn_scaler.joblib"
+            self.prob_threshold = kwargs.get('prob_threshold', 0.05)
+            self.window_seconds = kwargs.get('window_seconds', 60)
+            self.max_queue_size = kwargs.get('max_queue_size', 10000)
+            self.model_path = kwargs.get('model_path', "models/syn_model.joblib")
+            self.scaler_path = kwargs.get('scaler_path', "models/syn_scaler.joblib")
 
     @validator('model_path', 'scaler_path')
     def validate_model_paths(cls, v: str) -> str:
@@ -111,11 +146,25 @@ class NotificationSettings(BaseSettings):
     sound_enabled: bool = Field(True, description="Enable notification sounds")
     
     def __init__(self, **kwargs):
+        # Load from SIKC.cfg first, then override with any kwargs
+        try:
+            sikc = get_sikc_config()
+            sikc_values = {
+                'enable_notifications': sikc.get('notifications', 'enable_notifications', True),
+                'notification_timeout': sikc.get('notifications', 'notification_timeout', 5),
+                'sound_enabled': sikc.get('notifications', 'sound_enabled', True),
+            }
+            # Override with provided kwargs
+            sikc_values.update(kwargs)
+            kwargs = sikc_values
+        except Exception as e:
+            logger.debug(f"Could not load SIKC config for notification settings: {e}")
+        
         super().__init__(**kwargs)
         if not PYDANTIC_AVAILABLE:
-            self.enable_notifications = True
-            self.notification_timeout = 5
-            self.sound_enabled = True
+            self.enable_notifications = kwargs.get('enable_notifications', True)
+            self.notification_timeout = kwargs.get('notification_timeout', 5)
+            self.sound_enabled = kwargs.get('sound_enabled', True)
 
 
 class LoggingSettings(BaseSettings):
@@ -127,13 +176,29 @@ class LoggingSettings(BaseSettings):
     backup_count: int = Field(7, description="Number of backup log files", ge=1, le=50)
     
     def __init__(self, **kwargs):
+        # Load from SIKC.cfg first, then override with any kwargs
+        try:
+            sikc = get_sikc_config()
+            sikc_values = {
+                'log_level': sikc.get('logging', 'log_level', "INFO"),
+                'log_dir': sikc.get('logging', 'log_dir', "logs"),
+                'log_file': sikc.get('logging', 'log_file', "scada.log"),
+                'max_log_size': sikc.get('logging', 'max_log_size', 2097152),
+                'backup_count': sikc.get('logging', 'backup_count', 7),
+            }
+            # Override with provided kwargs
+            sikc_values.update(kwargs)
+            kwargs = sikc_values
+        except Exception as e:
+            logger.debug(f"Could not load SIKC config for logging settings: {e}")
+        
         super().__init__(**kwargs)
         if not PYDANTIC_AVAILABLE:
-            self.log_level = "INFO"
-            self.log_dir = "logs"
-            self.log_file = "scada.log"
-            self.max_log_size = 2097152
-            self.backup_count = 7
+            self.log_level = kwargs.get('log_level', "INFO")
+            self.log_dir = kwargs.get('log_dir', "logs")
+            self.log_file = kwargs.get('log_file', "scada.log")
+            self.max_log_size = kwargs.get('max_log_size', 2097152)
+            self.backup_count = kwargs.get('backup_count', 7)
 
     @validator('log_level')
     def validate_log_level(cls, v: str) -> str:
@@ -182,13 +247,27 @@ class AppSettings(BaseSettings):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     
     def __init__(self, **kwargs):
+        # Load from SIKC.cfg first, then override with any kwargs
+        try:
+            sikc = get_sikc_config()
+            sikc_values = {
+                'app_name': sikc.get('application', 'app_name', "SCADA-IDS-KC"),
+                'version': sikc.get('application', 'version', "1.0.0"),
+                'debug_mode': sikc.get('application', 'debug_mode', False),
+            }
+            # Override with provided kwargs
+            sikc_values.update(kwargs)
+            kwargs = sikc_values
+        except Exception as e:
+            logger.debug(f"Could not load SIKC config for app settings: {e}")
+        
         super().__init__(**kwargs)
         
         # Initialize sub-settings if not using Pydantic
         if not PYDANTIC_AVAILABLE:
-            self.app_name = "SCADA-IDS-KC"
-            self.version = "1.0.0"
-            self.debug_mode = False
+            self.app_name = kwargs.get('app_name', "SCADA-IDS-KC")
+            self.version = kwargs.get('version', "1.0.0")
+            self.debug_mode = kwargs.get('debug_mode', False)
             self.network = NetworkSettings()
             self.detection = DetectionSettings()
             self.notifications = NotificationSettings()
@@ -201,59 +280,117 @@ class AppSettings(BaseSettings):
 
     @classmethod
     def load_from_yaml(cls, config_path: Optional[str] = None) -> "AppSettings":
-        """Load settings from YAML file with environment variable overrides."""
-        if not YAML_AVAILABLE:
-            logger.warning("YAML not available, using default settings")
-            return cls()
-
-        if config_path is None:
-            # Try to find config file relative to the executable or script
-            if getattr(sys, 'frozen', False):
-                # Running as PyInstaller bundle
-                base_path = Path(sys._MEIPASS)
-            else:
-                # Running as script
-                base_path = Path(__file__).parent.parent.parent
-
-            config_path = base_path / "config" / "default.yaml"
-
+        """Load settings from SIKC.cfg first, then YAML file with environment variable overrides."""
+        # Initialize SIKC.cfg (creates if doesn't exist)
+        try:
+            sikc = get_sikc_config()
+            logger.info("SIKC configuration system initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize SIKC configuration: {e}")
+        
+        # Load additional config from YAML if available
         config_data = {}
-        config_file_path = Path(config_path)
+        
+        if YAML_AVAILABLE and config_path is not None:
+            if config_path is None:
+                # Try to find config file relative to the executable or script
+                if getattr(sys, 'frozen', False):
+                    # Running as PyInstaller bundle
+                    base_path = Path(sys._MEIPASS)
+                else:
+                    # Running as script
+                    base_path = Path(__file__).parent.parent.parent
 
-        if config_file_path.exists():
-            try:
-                # Security check: ensure config file is not too large
-                if config_file_path.stat().st_size > 1024 * 1024:  # 1MB limit
-                    logger.error(f"Configuration file too large: {config_path}")
+                config_path = base_path / "config" / "default.yaml"
+
+            config_file_path = Path(config_path)
+
+            if config_file_path.exists():
+                try:
+                    # Security check: ensure config file is not too large
+                    if config_file_path.stat().st_size > 1024 * 1024:  # 1MB limit
+                        logger.error(f"Configuration file too large: {config_path}")
+                        return cls()
+
+                    with open(config_file_path, 'r', encoding='utf-8') as f:
+                        config_data = yaml.safe_load(f) or {}
+
+                    if not isinstance(config_data, dict):
+                        logger.error(f"Invalid configuration format in {config_path}")
+                        return cls()
+
+                    logger.info(f"Loaded additional YAML configuration from {config_path}")
+
+                except yaml.YAMLError as e:
+                    logger.error(f"Error parsing YAML configuration: {e}")
                     return cls()
-
-                with open(config_file_path, 'r', encoding='utf-8') as f:
-                    config_data = yaml.safe_load(f) or {}
-
-                if not isinstance(config_data, dict):
-                    logger.error(f"Invalid configuration format in {config_path}")
+                except (OSError, IOError) as e:
+                    logger.error(f"Error reading configuration file: {e}")
                     return cls()
+                except Exception as e:
+                    logger.error(f"Unexpected error loading configuration: {e}")
+                    return cls()
+            else:
+                logger.debug(f"YAML configuration file not found: {config_path}")
 
-                logger.info(f"Loaded configuration from {config_path}")
-
-            except yaml.YAMLError as e:
-                logger.error(f"Error parsing YAML configuration: {e}")
-                return cls()
-            except (OSError, IOError) as e:
-                logger.error(f"Error reading configuration file: {e}")
-                return cls()
-            except Exception as e:
-                logger.error(f"Unexpected error loading configuration: {e}")
-                return cls()
-        else:
-            logger.info(f"Configuration file not found: {config_path}, using defaults")
-
-        # Create settings with YAML data and environment overrides
+        # Create settings with SIKC.cfg (primary) + YAML data + environment overrides
         try:
             return cls(**config_data)
         except Exception as e:
             logger.error(f"Error creating settings from configuration: {e}")
             return cls()
+    
+    def reload_from_sikc(self) -> bool:
+        """Reload settings from SIKC.cfg file if it has changed."""
+        try:
+            from .sikc_config import reload_sikc_config
+            if reload_sikc_config():
+                logger.info("Settings reloaded from SIKC.cfg")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error reloading settings from SIKC.cfg: {e}")
+            return False
+    
+    def save_to_sikc(self) -> bool:
+        """Save current settings to SIKC.cfg file."""
+        try:
+            sikc = get_sikc_config()
+            
+            # Save main app settings
+            sikc.set('application', 'app_name', self.app_name)
+            sikc.set('application', 'version', self.version)
+            sikc.set('application', 'debug_mode', self.debug_mode)
+            
+            # Save sub-settings
+            sikc.set('network', 'interface', self.network.interface or "")
+            sikc.set('network', 'bpf_filter', self.network.bpf_filter)
+            sikc.set('network', 'promiscuous_mode', self.network.promiscuous_mode)
+            sikc.set('network', 'capture_timeout', self.network.capture_timeout)
+            
+            sikc.set('detection', 'prob_threshold', self.detection.prob_threshold)
+            sikc.set('detection', 'window_seconds', self.detection.window_seconds)
+            sikc.set('detection', 'max_queue_size', self.detection.max_queue_size)
+            sikc.set('detection', 'model_path', self.detection.model_path)
+            sikc.set('detection', 'scaler_path', self.detection.scaler_path)
+            
+            sikc.set('notifications', 'enable_notifications', self.notifications.enable_notifications)
+            sikc.set('notifications', 'notification_timeout', self.notifications.notification_timeout)
+            sikc.set('notifications', 'sound_enabled', self.notifications.sound_enabled)
+            
+            sikc.set('logging', 'log_level', self.logging.log_level)
+            sikc.set('logging', 'log_dir', self.logging.log_dir)
+            sikc.set('logging', 'log_file', self.logging.log_file)
+            sikc.set('logging', 'max_log_size', self.logging.max_log_size)
+            sikc.set('logging', 'backup_count', self.logging.backup_count)
+            
+            sikc.save()
+            logger.info("Settings saved to SIKC.cfg")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error saving settings to SIKC.cfg: {e}")
+            return False
 
     def save_to_yaml(self, config_path: str) -> bool:
         """Save current settings to YAML file."""
@@ -314,19 +451,101 @@ class AppSettings(BaseSettings):
 
 
 # Global settings instance
-settings: Optional[AppSettings] = None
+_settings: Optional[AppSettings] = None
+_settings_lock = threading.Lock()
 
 
 def get_settings() -> AppSettings:
     """Get global settings instance, loading if necessary."""
-    global settings
-    if settings is None:
-        settings = AppSettings.load_from_yaml()
-    return settings
+    global _settings
+    if _settings is None:
+        with _settings_lock:
+            if _settings is None:
+                _settings = AppSettings.load_from_yaml()
+    return _settings
 
 
 def reload_settings(config_path: Optional[str] = None) -> AppSettings:
     """Reload settings from file."""
-    global settings
-    settings = AppSettings.load_from_yaml(config_path)
-    return settings
+    global _settings
+    with _settings_lock:
+        _settings = AppSettings.load_from_yaml(config_path)
+    return _settings
+
+
+def reload_sikc_settings() -> bool:
+    """Reload settings from SIKC.cfg if it has changed."""
+    global _settings
+    if _settings is not None:
+        return _settings.reload_from_sikc()
+    return False
+
+
+def save_current_settings_to_sikc() -> bool:
+    """Save current settings to SIKC.cfg."""
+    global _settings
+    if _settings is not None:
+        return _settings.save_to_sikc()
+    return False
+
+
+def reset_settings():
+    """Reset global settings instance (for testing)."""
+    global _settings
+    with _settings_lock:
+        _settings = None
+
+
+def get_sikc_value(section: str, option: str, fallback: Any = None) -> Any:
+    """Get a value directly from SIKC.cfg."""
+    try:
+        sikc = get_sikc_config()
+        return sikc.get(section, option, fallback)
+    except Exception:
+        return fallback
+
+
+def set_sikc_value(section: str, option: str, value: Any) -> bool:
+    """Set a value directly in SIKC.cfg."""
+    try:
+        sikc = get_sikc_config()
+        sikc.set(section, option, value)
+        return True
+    except Exception:
+        return False
+
+
+def get_all_sikc_sections() -> List[str]:
+    """Get all SIKC.cfg sections."""
+    try:
+        sikc = get_sikc_config()
+        return sikc.get_all_sections()
+    except Exception:
+        return []
+
+
+def get_sikc_section(section: str) -> Dict[str, Any]:
+    """Get all values from a SIKC.cfg section."""
+    try:
+        sikc = get_sikc_config()
+        return sikc.get_section(section)
+    except Exception:
+        return {}
+
+
+def export_sikc_config(export_path: str) -> bool:
+    """Export SIKC.cfg to another file."""
+    try:
+        sikc = get_sikc_config()
+        return sikc.export_config(export_path)
+    except Exception:
+        return False
+
+
+def import_sikc_config(import_path: str) -> bool:
+    """Import configuration from another file to SIKC.cfg."""
+    try:
+        sikc = get_sikc_config()
+        return sikc.import_config(import_path)
+    except Exception:
+        return False

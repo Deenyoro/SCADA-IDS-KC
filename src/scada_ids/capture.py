@@ -398,14 +398,31 @@ class PacketSniffer:
     def _capture_loop(self):
         """Main capture loop running in separate thread."""
         try:
-            scapy.sniff(
-                iface=self.current_interface,
-                filter=self.settings.network.bpf_filter,
-                prn=self._packet_handler,
-                store=False,
-                stop_filter=lambda x: not self.is_running,
-                timeout=self.settings.network.capture_timeout
-            )
+            # Try with specified interface first, fall back to default if it fails
+            capture_interface = self.current_interface
+            logger.info(f"Attempting packet capture on interface: {capture_interface}")
+            
+            try:
+                scapy.sniff(
+                    iface=capture_interface,
+                    filter=self.settings.network.bpf_filter,
+                    prn=self._packet_handler,
+                    store=False,
+                    stop_filter=lambda x: not self.is_running,
+                    timeout=self.settings.network.capture_timeout
+                )
+            except Exception as e:
+                logger.warning(f"Interface-specific capture failed ({e}), trying default interface...")
+                # Fall back to default interface (None means default)
+                scapy.sniff(
+                    filter=self.settings.network.bpf_filter,
+                    prn=self._packet_handler,
+                    store=False,
+                    stop_filter=lambda x: not self.is_running,
+                    timeout=self.settings.network.capture_timeout
+                )
+                logger.info("Successfully using default interface for packet capture")
+                
         except Exception as e:
             logger.error(f"Packet capture error: {e}")
         finally:

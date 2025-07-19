@@ -23,6 +23,8 @@ from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap
 sys.path.append(str(Path(__file__).parent.parent))
 from scada_ids.controller import get_controller
 from scada_ids.settings import get_settings
+from ui.config_dialog import ConfigurationDialog
+from ui.themes import get_theme_manager, apply_theme, get_current_theme, get_available_themes
 
 
 logger = logging.getLogger(__name__)
@@ -92,6 +94,9 @@ class MainWindow(QMainWindow):
         self._init_system_tray()
         self._init_timers()
         
+        # Load theme from settings
+        self._load_theme_from_settings()
+        
         # Start worker thread
         self.worker_thread.start()
         
@@ -110,205 +115,19 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1000, 700)
         self.resize(1200, 800)
         
-        # Set stunning modern security theme
-        self.setStyleSheet("""
-            QMainWindow {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #1a1a1a, stop: 1 #0d0d0d);
-                color: #ffffff;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-            }
-            QWidget {
-                background-color: transparent;
-                color: #ffffff;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #00ff88;
-                border-radius: 8px;
-                margin-top: 8px;
-                padding-top: 12px;
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #2a2a2a, stop: 1 #1e1e1e);
-                color: #ffffff;
-                box-shadow: 0px 2px 6px rgba(0, 255, 136, 0.2);
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 15px;
-                padding: 0 8px 0 8px;
-                color: #00ff88;
-                font-size: 13px;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            }
-            QPushButton {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #4a4a4a, stop: 1 #3a3a3a);
-                border: 1px solid #555555;
-                border-radius: 6px;
-                padding: 6px 12px;
-                color: #ffffff;
-                font-weight: bold;
-                font-size: 10px;
-                min-height: 20px;
-                max-height: 28px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #5a5a5a, stop: 1 #4a4a4a);
-                border-color: #00ff88;
-                box-shadow: 0px 3px 8px rgba(0, 255, 136, 0.4);
-            }
-            QPushButton:pressed {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #00cc66, stop: 1 #00ff88);
-                color: #000000;
-                border-color: #00ff88;
-            }
-            QPushButton:disabled {
-                background-color: #2a2a2a;
-                color: #666666;
-                border-color: #333333;
-            }
-            QLabel {
-                color: #e0e0e0;
-                font-size: 11px;
-            }
-            QComboBox {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #4a4a4a, stop: 1 #3a3a3a);
-                border: 1px solid #555555;
-                border-radius: 4px;
-                padding: 4px 8px;
-                color: #ffffff;
-                min-height: 18px;
-                max-height: 24px;
-                font-size: 10px;
-            }
-            QComboBox:hover {
-                border-color: #00ff88;
-                box-shadow: 0px 2px 6px rgba(0, 255, 136, 0.3);
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 25px;
-            }
-            QComboBox::down-arrow {
-                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iNiIgdmlld0JveD0iMCAwIDEwIDYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik01IDZMMCAwSDEwTDUgNloiIGZpbGw9IiNGRkZGRkYiLz4KPC9zdmc+);
-                margin-right: 8px;
-            }
-            QTextEdit {
-                background-color: #0f0f0f;
-                border: 1px solid #333333;
-                border-radius: 8px;
-                color: #ffffff;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 10px;
-                padding: 12px;
-                selection-background-color: #00ff88;
-                selection-color: #000000;
-                line-height: 1.4;
-            }
-            QTabWidget::pane {
-                border: 1px solid #404040;
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #1e1e1e, stop: 1 #141414);
-                border-radius: 8px;
-                margin-top: 5px;
-            }
-            QTabBar::tab {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #4a4a4a, stop: 1 #3a3a3a);
-                color: #ffffff;
-                padding: 8px 16px;
-                margin-right: 2px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                font-weight: 500;
-                font-size: 10px;
-                min-width: 80px;
-            }
-            QTabBar::tab:selected {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #00ff88, stop: 1 #00cc66);
-                color: #000000;
-                font-weight: bold;
-                box-shadow: 0px 2px 8px rgba(0, 255, 136, 0.5);
-            }
-            QTabBar::tab:hover:!selected {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #5a5a5a, stop: 1 #4a4a4a);
-                border-bottom: 2px solid #00ff88;
-            }
-            QStatusBar {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #2a2a2a, stop: 1 #1a1a1a);
-                border-top: 1px solid #404040;
-                color: #ffffff;
-                font-size: 10px;
-            }
-            QTableWidget {
-                background-color: #1a1a1a;
-                border: 1px solid #404040;
-                border-radius: 8px;
-                color: #ffffff;
-                gridline-color: #333333;
-                selection-background-color: #00ff88;
-                selection-color: #000000;
-                font-size: 10px;
-            }
-            QHeaderView::section {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 #4a4a4a, stop: 1 #3a3a3a);
-                color: #ffffff;
-                padding: 10px;
-                border: none;
-                border-right: 1px solid #555555;
-                border-bottom: 1px solid #555555;
-                font-weight: bold;
-                font-size: 10px;
-            }
-            QCheckBox {
-                color: #ffffff;
-                spacing: 8px;
-                font-size: 11px;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                border: 2px solid #555555;
-                border-radius: 4px;
-                background-color: #3a3a3a;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #00ff88;
-                border-color: #00ff88;
-                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEwIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik04LjMzMzMzIDAuNUw5LjE2NjY3IDEuMzMzMzNMMy41IDdMMC44MzMzMzMgNC4zMzMzM0wxLjY2NjY3IDMuNUwzLjUgNS4zMzMzM0w4LjMzMzMzIDAuNVoiIGZpbGw9IiMwMDAwMDAiLz4KPC9zdmc+);
-            }
-            QProgressBar {
-                border: 1px solid #404040;
-                border-radius: 8px;
-                text-align: center;
-                background-color: #2a2a2a;
-                color: #ffffff;
-                font-weight: bold;
-                height: 20px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
-                    stop: 0 #00ff88, stop: 1 #00cc66);
-                border-radius: 6px;
-                margin: 1px;
-            }
-        """)
+        # Theme will be applied after initialization through theme manager
         
         # Set window icon
         try:
-            icon_path = self.settings.get_resource_path("src/ui/icons/tray.ico")
-            if icon_path.exists():
-                self.setWindowIcon(QIcon(str(icon_path)))
+            # Try logo.png first
+            logo_path = self.settings.get_resource_path("logo.png")
+            if logo_path.exists():
+                self.setWindowIcon(QIcon(str(logo_path)))
+            else:
+                # Fallback to tray.ico
+                icon_path = self.settings.get_resource_path("src/ui/icons/tray.ico")
+                if icon_path.exists():
+                    self.setWindowIcon(QIcon(str(icon_path)))
         except Exception as e:
             logger.warning(f"Could not load window icon: {e}")
         
@@ -495,6 +314,17 @@ class MainWindow(QMainWindow):
         """Create system status header panel."""
         group = QGroupBox("🛡️ SCADA-IDS-KC Network Security Appliance")
         layout = QHBoxLayout(group)
+        
+        # Add logo
+        logo_label = QLabel()
+        logo_path = self.settings.get_resource_path("logo.png")
+        if logo_path.exists():
+            pixmap = QPixmap(str(logo_path))
+            # Scale logo to fit nicely in header (height of 40 pixels)
+            scaled_pixmap = pixmap.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation)
+            logo_label.setPixmap(scaled_pixmap)
+            logo_label.setStyleSheet("QLabel { margin-right: 10px; }")
+        layout.addWidget(logo_label)
         
         # System status indicators
         self.system_status_label = QLabel("⚪ System Ready")
@@ -911,6 +741,37 @@ class MainWindow(QMainWindow):
         minimize_action.triggered.connect(self._minimize_to_tray)
         view_menu.addAction(minimize_action)
         
+        view_menu.addSeparator()
+        
+        # Theme submenu
+        theme_menu = view_menu.addMenu("Theme")
+        
+        light_theme_action = QAction("Light Theme", self)
+        light_theme_action.triggered.connect(lambda: self._apply_theme("light"))
+        theme_menu.addAction(light_theme_action)
+        
+        dark_theme_action = QAction("Dark Theme", self)
+        dark_theme_action.triggered.connect(lambda: self._apply_theme("dark"))
+        theme_menu.addAction(dark_theme_action)
+        
+        # Settings menu
+        settings_menu = menubar.addMenu("Settings")
+        
+        config_action = QAction("Configuration...", self)
+        config_action.setShortcut("Ctrl+Comma")
+        config_action.triggered.connect(self._open_configuration_dialog)
+        settings_menu.addAction(config_action)
+        
+        settings_menu.addSeparator()
+        
+        reload_config_action = QAction("Reload Configuration", self)
+        reload_config_action.triggered.connect(self._reload_configuration)
+        settings_menu.addAction(reload_config_action)
+        
+        reset_config_action = QAction("Reset to Defaults", self)
+        reset_config_action.triggered.connect(self._reset_configuration)
+        settings_menu.addAction(reset_config_action)
+        
         # Help menu
         help_menu = menubar.addMenu("Help")
         
@@ -1240,6 +1101,15 @@ class MainWindow(QMainWindow):
     
     def _show_about(self):
         """Show about dialog."""
+        # Create custom about dialog with logo
+        about_dialog = QMessageBox(self)
+        about_dialog.setWindowTitle("About SCADA-IDS-KC")
+        
+        # Set logo as icon
+        logo_path = self.settings.get_resource_path("logo.png")
+        if logo_path.exists():
+            about_dialog.setIconPixmap(QPixmap(str(logo_path)).scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        
         about_text = f"""
         <h2>{self.settings.app_name}</h2>
         <p>Version: {self.settings.version}</p>
@@ -1254,7 +1124,8 @@ class MainWindow(QMainWindow):
         <p>© 2025 SCADA-IDS-KC Team</p>
         """
         
-        QMessageBox.about(self, "About SCADA-IDS-KC", about_text)
+        about_dialog.setText(about_text)
+        about_dialog.exec()
     
     # New methods for enhanced functionality
     
@@ -1560,6 +1431,97 @@ Test Status: {'PASSED' if response_time < 5000 else 'WARNING'}"""
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to export log: {str(e)}")
             logger.error(f"Log export error: {e}")
+    
+    def _load_theme_from_settings(self):
+        """Load and apply theme from configuration settings."""
+        try:
+            theme_manager = get_theme_manager()
+            theme_manager.load_theme_from_settings()
+            self._log_message("INFO", f"Applied theme: {get_current_theme()}")
+        except Exception as e:
+            logger.error(f"Error loading theme from settings: {e}")
+            # Apply dark theme as fallback
+            apply_theme("dark")
+    
+    def _apply_theme(self, theme_name: str):
+        """Apply a specific theme to the application."""
+        try:
+            if apply_theme(theme_name):
+                self._log_message("INFO", f"Theme changed to: {theme_name}")
+                QMessageBox.information(self, "Theme Applied", f"Theme changed to {theme_name} successfully.")
+            else:
+                QMessageBox.warning(self, "Theme Error", f"Failed to apply {theme_name} theme.")
+        except Exception as e:
+            logger.error(f"Error applying theme {theme_name}: {e}")
+            QMessageBox.critical(self, "Error", f"Error applying theme: {str(e)}")
+    
+    def _open_configuration_dialog(self):
+        """Open the comprehensive configuration dialog."""
+        try:
+            dialog = ConfigurationDialog(self)
+            result = dialog.exec()
+            
+            if result == ConfigurationDialog.DialogCode.Accepted:
+                self._log_message("INFO", "Configuration dialog closed with changes")
+                # Reload settings to pick up any changes
+                self._reload_configuration_silently()
+            else:
+                self._log_message("INFO", "Configuration dialog canceled")
+                
+        except Exception as e:
+            logger.error(f"Error opening configuration dialog: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to open configuration dialog: {str(e)}")
+    
+    def _reload_configuration(self):
+        """Reload configuration from files with user feedback."""
+        try:
+            from scada_ids.settings import reload_sikc_settings
+            
+            if reload_sikc_settings():
+                QMessageBox.information(self, "Configuration Reloaded", "Configuration has been reloaded from file.")
+                self._log_message("INFO", "Configuration reloaded from SIKC.cfg")
+                # Reload theme in case it changed
+                self._load_theme_from_settings()
+            else:
+                QMessageBox.information(self, "No Changes", "No configuration changes detected.")
+                
+        except Exception as e:
+            logger.error(f"Error reloading configuration: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to reload configuration: {str(e)}")
+    
+    def _reload_configuration_silently(self):
+        """Reload configuration silently without user feedback."""
+        try:
+            from scada_ids.settings import reload_sikc_settings
+            reload_sikc_settings()
+            # Reload theme in case it changed
+            self._load_theme_from_settings()
+        except Exception as e:
+            logger.error(f"Error reloading configuration silently: {e}")
+    
+    def _reset_configuration(self):
+        """Reset configuration to default values."""
+        try:
+            reply = QMessageBox.question(
+                self, "Reset Configuration", 
+                "This will reset ALL configuration values to their defaults.\n"
+                "This action cannot be undone. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                from scada_ids.settings import reset_settings
+                reset_settings()
+                
+                QMessageBox.information(self, "Reset Complete", "Configuration has been reset to defaults.")
+                self._log_message("INFO", "Configuration reset to defaults")
+                
+                # Reload theme to default
+                self._load_theme_from_settings()
+                
+        except Exception as e:
+            logger.error(f"Error resetting configuration: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to reset configuration: {str(e)}")
     
     def closeEvent(self, event):
         """Handle window close event."""

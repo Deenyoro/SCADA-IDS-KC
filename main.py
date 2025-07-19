@@ -208,6 +208,53 @@ def run_cli_mode(args):
         if args.monitor:
             return run_monitoring_cli(controller, args)
         
+        # SIKC Configuration Commands
+        if args.config_get:
+            return handle_config_get(args.config_get[0], args.config_get[1])
+        
+        if args.config_set:
+            return handle_config_set(args.config_set[0], args.config_set[1], args.config_set[2])
+        
+        if args.config_list_sections:
+            return handle_config_list_sections()
+        
+        if args.config_list_section:
+            return handle_config_list_section(args.config_list_section)
+        
+        if args.config_reload:
+            return handle_config_reload()
+        
+        if args.config_export:
+            return handle_config_export(args.config_export)
+        
+        if args.config_import:
+            return handle_config_import(args.config_import)
+        
+        if args.config_reset:
+            return handle_config_reset()
+        
+        if args.config_show_threshold:
+            return handle_config_show_threshold()
+        
+        if args.config_set_threshold is not None:
+            return handle_config_set_threshold(args.config_set_threshold)
+        
+        # Advanced configuration commands
+        if args.config_validate:
+            return handle_config_validate()
+        
+        if args.config_info:
+            return handle_config_info()
+        
+        if args.config_backup:
+            return handle_config_backup(args.config_backup)
+        
+        if args.config_list_backups:
+            return handle_config_list_backups()
+        
+        if args.config_restore:
+            return handle_config_restore(args.config_restore)
+        
         # Default: show help
         print("Use --help for usage information")
         return 0
@@ -494,6 +541,358 @@ def run_monitoring_cli(controller, args):
         return 1
 
 
+def handle_config_get(section: str, option: str) -> int:
+    """Handle --config-get command."""
+    try:
+        from scada_ids.settings import get_sikc_value
+        
+        value = get_sikc_value(section, option)
+        if value is None:
+            print(f"Configuration option [{section}].{option} not found")
+            return 1
+        
+        print(f"[{section}].{option} = {value}")
+        return 0
+        
+    except Exception as e:
+        print(f"Error getting configuration value: {e}")
+        return 1
+
+
+def handle_config_set(section: str, option: str, value: str) -> int:
+    """Handle --config-set command."""
+    try:
+        from scada_ids.settings import set_sikc_value
+        
+        # Try to convert value to appropriate type
+        converted_value = value
+        if value.lower() in ('true', 'yes', '1', 'on'):
+            converted_value = True
+        elif value.lower() in ('false', 'no', '0', 'off'):
+            converted_value = False
+        elif '.' in value:
+            try:
+                converted_value = float(value)
+            except ValueError:
+                pass
+        else:
+            try:
+                converted_value = int(value)
+            except ValueError:
+                pass
+        
+        if set_sikc_value(section, option, converted_value):
+            print(f"Successfully set [{section}].{option} = {converted_value}")
+            return 0
+        else:
+            print(f"Failed to set configuration value")
+            return 1
+            
+    except Exception as e:
+        print(f"Error setting configuration value: {e}")
+        return 1
+
+
+def handle_config_list_sections() -> int:
+    """Handle --config-list-sections command."""
+    try:
+        from scada_ids.settings import get_all_sikc_sections
+        
+        sections = get_all_sikc_sections()
+        if not sections:
+            print("No configuration sections found")
+            return 0
+        
+        print("Available configuration sections:")
+        for i, section in enumerate(sorted(sections), 1):
+            print(f"  {i:2d}. {section}")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error listing sections: {e}")
+        return 1
+
+
+def handle_config_list_section(section: str) -> int:
+    """Handle --config-list-section command."""
+    try:
+        from scada_ids.settings import get_sikc_section
+        
+        options = get_sikc_section(section)
+        if not options:
+            print(f"Section '{section}' not found or empty")
+            return 1
+        
+        print(f"Options in section [{section}]:")
+        for option, value in sorted(options.items()):
+            print(f"  {option} = {value}")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error listing section: {e}")
+        return 1
+
+
+def handle_config_reload() -> int:
+    """Handle --config-reload command."""
+    try:
+        from scada_ids.settings import reload_sikc_settings
+        
+        if reload_sikc_settings():
+            print("Configuration reloaded successfully")
+            return 0
+        else:
+            print("No configuration changes detected")
+            return 0
+            
+    except Exception as e:
+        print(f"Error reloading configuration: {e}")
+        return 1
+
+
+def handle_config_export(export_path: str) -> int:
+    """Handle --config-export command."""
+    try:
+        from scada_ids.settings import export_sikc_config
+        
+        if export_sikc_config(export_path):
+            print(f"Configuration exported to: {export_path}")
+            return 0
+        else:
+            print(f"Failed to export configuration")
+            return 1
+            
+    except Exception as e:
+        print(f"Error exporting configuration: {e}")
+        return 1
+
+
+def handle_config_import(import_path: str) -> int:
+    """Handle --config-import command."""
+    try:
+        from scada_ids.settings import import_sikc_config
+        import os
+        
+        if not os.path.exists(import_path):
+            print(f"Import file not found: {import_path}")
+            return 1
+        
+        print(f"Importing configuration from: {import_path}")
+        print("WARNING: This will overwrite current SIKC.cfg settings!")
+        
+        # In CLI mode, proceed without confirmation
+        if import_sikc_config(import_path):
+            print("Configuration imported successfully")
+            return 0
+        else:
+            print("Failed to import configuration")
+            return 1
+            
+    except Exception as e:
+        print(f"Error importing configuration: {e}")
+        return 1
+
+
+def handle_config_reset() -> int:
+    """Handle --config-reset command."""
+    try:
+        from scada_ids.sikc_config import reset_sikc_config, get_sikc_config
+        
+        print("WARNING: This will reset SIKC.cfg to default values!")
+        print("All custom settings will be lost!")
+        
+        # In CLI mode, proceed without confirmation
+        reset_sikc_config()
+        sikc = get_sikc_config()  # This will create new config with defaults
+        
+        print("Configuration reset to defaults")
+        return 0
+        
+    except Exception as e:
+        print(f"Error resetting configuration: {e}")
+        return 1
+
+
+def handle_config_show_threshold() -> int:
+    """Handle --config-show-threshold command."""
+    try:
+        from scada_ids.settings import get_sikc_value
+        
+        threshold = get_sikc_value('detection', 'prob_threshold', 0.05)
+        print(f"Current detection threshold: {threshold}")
+        
+        if threshold > 0.5:
+            print("WARNING: Threshold is quite high - may miss attacks")
+        elif threshold < 0.01:
+            print("WARNING: Threshold is very low - may cause false positives")
+        else:
+            print("Threshold appears to be in reasonable range")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error getting threshold: {e}")
+        return 1
+
+
+def handle_config_set_threshold(threshold: float) -> int:
+    """Handle --config-set-threshold command."""
+    try:
+        from scada_ids.settings import set_sikc_value
+        
+        if not (0.0 <= threshold <= 1.0):
+            print("Error: Threshold must be between 0.0 and 1.0")
+            return 1
+        
+        if set_sikc_value('detection', 'prob_threshold', threshold):
+            print(f"Detection threshold set to: {threshold}")
+            
+            if threshold > 0.5:
+                print("WARNING: High threshold - may miss attacks")
+            elif threshold < 0.01:
+                print("WARNING: Very low threshold - may cause false positives")
+            
+            return 0
+        else:
+            print("Failed to set threshold")
+            return 1
+            
+    except Exception as e:
+        print(f"Error setting threshold: {e}")
+        return 1
+
+
+def handle_config_validate() -> int:
+    """Handle --config-validate command."""
+    try:
+        from scada_ids.sikc_config import get_sikc_config
+        
+        sikc = get_sikc_config()
+        validation_errors = sikc.get_validation_errors()
+        
+        if not validation_errors:
+            print("Configuration validation passed successfully")
+            print("All configuration values are valid according to schema")
+            return 0
+        else:
+            print(f"Configuration validation failed with {len(validation_errors)} errors:")
+            for i, error in enumerate(validation_errors, 1):
+                print(f"  {i}. {error}")
+            return 1
+            
+    except Exception as e:
+        print(f"Error validating configuration: {e}")
+        return 1
+
+
+def handle_config_info() -> int:
+    """Handle --config-info command."""
+    try:
+        from scada_ids.sikc_config import get_sikc_config
+        
+        sikc = get_sikc_config()
+        info = sikc.get_config_info()
+        
+        print("=== Configuration Information ===")
+        print(f"Configuration File: {info.get('config_file', 'Unknown')}")
+        print(f"File Exists: {'Yes' if info.get('file_exists', False) else 'No'}")
+        
+        if info.get('file_exists'):
+            print(f"File Size: {info.get('file_size', 0):,} bytes")
+            print(f"Last Modified: {info.get('last_modified', 'Unknown')}")
+            print(f"Configuration Hash: {info.get('config_hash', 'Unknown')[:16]}...")
+        
+        print(f"Sections Count: {info.get('sections_count', 0)}")
+        print(f"Total Options: {info.get('total_options', 0)}")
+        print(f"Validation Status: {'Valid' if info.get('is_valid', False) else 'Invalid'}")
+        
+        if info.get('validation_errors', 0) > 0:
+            print(f"Validation Errors: {info.get('validation_errors', 0)}")
+        
+        print(f"Available Backups: {info.get('backup_count', 0)}")
+        print(f"Backup Directory: {info.get('backup_directory', 'Unknown')}")
+        print(f"Auto-reload: {'Enabled' if info.get('auto_reload', False) else 'Disabled'}")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error getting configuration info: {e}")
+        return 1
+
+
+def handle_config_backup(backup_name: str) -> int:
+    """Handle --config-backup command."""
+    try:
+        from scada_ids.sikc_config import get_sikc_config
+        
+        sikc = get_sikc_config()
+        
+        if sikc.create_backup(backup_name):
+            print(f"Configuration backup created: {backup_name}")
+            return 0
+        else:
+            print(f"Failed to create backup: {backup_name}")
+            return 1
+            
+    except Exception as e:
+        print(f"Error creating backup: {e}")
+        return 1
+
+
+def handle_config_list_backups() -> int:
+    """Handle --config-list-backups command."""
+    try:
+        from scada_ids.sikc_config import get_sikc_config
+        
+        sikc = get_sikc_config()
+        backups = sikc.list_backups()
+        
+        if not backups:
+            print("No configuration backups found")
+            return 0
+        
+        print(f"Available configuration backups ({len(backups)}):")
+        print(f"{'#':<3} {'Name':<30} {'Size':<10} {'Created':<20}")
+        print("-" * 65)
+        
+        for i, backup in enumerate(backups, 1):
+            size_mb = backup.get('size', 0) / 1024 / 1024
+            created = backup.get('created', '')[:19].replace('T', ' ')  # Format datetime
+            print(f"{i:<3} {backup.get('name', ''):<30} {size_mb:.1f} MB {created:<20}")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error listing backups: {e}")
+        return 1
+
+
+def handle_config_restore(backup_name: str) -> int:
+    """Handle --config-restore command."""
+    try:
+        from scada_ids.sikc_config import get_sikc_config
+        
+        sikc = get_sikc_config()
+        
+        print(f"WARNING: This will restore configuration from backup: {backup_name}")
+        print("Current configuration will be backed up automatically.")
+        
+        # In CLI mode, proceed without user confirmation for automation
+        if sikc.restore_backup(backup_name):
+            print(f"Configuration restored from backup: {backup_name}")
+            print("Configuration has been reloaded with restored settings")
+            return 0
+        else:
+            print(f"Failed to restore from backup: {backup_name}")
+            return 1
+            
+    except Exception as e:
+        print(f"Error restoring backup: {e}")
+        return 1
+
+
 def main():
     """Main application entry point."""
     parser = argparse.ArgumentParser(
@@ -541,6 +940,41 @@ Examples:
                        default='INFO', help='Logging level')
     parser.add_argument('--config', type=str,
                        help='Configuration file path')
+    
+    # SIKC Configuration Management Commands
+    parser.add_argument('--config-get', nargs=2, metavar=('SECTION', 'OPTION'),
+                       help='Get configuration value from SIKC.cfg (CLI mode)')
+    parser.add_argument('--config-set', nargs=3, metavar=('SECTION', 'OPTION', 'VALUE'),
+                       help='Set configuration value in SIKC.cfg (CLI mode)')
+    parser.add_argument('--config-list-sections', action='store_true',
+                       help='List all configuration sections (CLI mode)')
+    parser.add_argument('--config-list-section', type=str,
+                       help='List all options in a configuration section (CLI mode)')
+    parser.add_argument('--config-reload', action='store_true',
+                       help='Reload configuration from SIKC.cfg (CLI mode)')
+    parser.add_argument('--config-export', type=str,
+                       help='Export SIKC.cfg to specified file (CLI mode)')
+    parser.add_argument('--config-import', type=str,
+                       help='Import configuration from specified file (CLI mode)')
+    parser.add_argument('--config-reset', action='store_true',
+                       help='Reset SIKC.cfg to default values (CLI mode)')
+    parser.add_argument('--config-show-threshold', action='store_true',
+                       help='Show current detection threshold (CLI mode)')
+    parser.add_argument('--config-set-threshold', type=float, metavar='THRESHOLD',
+                       help='Set detection threshold (0.0-1.0) (CLI mode)')
+    
+    # Advanced configuration commands
+    parser.add_argument('--config-validate', action='store_true',
+                       help='Validate configuration against schema (CLI mode)')
+    parser.add_argument('--config-info', action='store_true',
+                       help='Show detailed configuration information (CLI mode)')
+    parser.add_argument('--config-backup', type=str, metavar='BACKUP_NAME',
+                       help='Create configuration backup (CLI mode)')
+    parser.add_argument('--config-list-backups', action='store_true',
+                       help='List available configuration backups (CLI mode)')
+    parser.add_argument('--config-restore', type=str, metavar='BACKUP_NAME',
+                       help='Restore configuration from backup (CLI mode)')
+    
     parser.add_argument('--version', action='version', version='SCADA-IDS-KC 1.0.0')
     
     args = parser.parse_args()

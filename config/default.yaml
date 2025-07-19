@@ -13,7 +13,7 @@ network:
 
 # ML detection settings
 detection:
-  prob_threshold: 0.7  # Probability threshold for attack alerts
+  prob_threshold: 0.05  # Probability threshold for attack alerts
   window_seconds: 60   # Time window for feature extraction
   max_queue_size: 10000  # Maximum packet queue size
   model_path: "models/syn_model.joblib"

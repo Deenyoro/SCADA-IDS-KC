@@ -44,7 +44,7 @@ class IDSController:
         # Initialize components
         self.packet_sniffer = PacketSniffer(packet_callback=self._handle_packet)
         self.feature_extractor = FeatureExtractor()
-        self.ml_detector = get_detector()
+        self.ml_detector = get_detector()  # This will reuse already loaded models if available
         self.notification_manager = get_notifier()
         
         # State management

@@ -1,6 +1,14 @@
-# SCADA-IDS-KC
-
-A Python-based Network Intrusion Detection System (IDS) with machine learning-based SYN flood detection.
+<div align="center">
+  <img src="logo.png" alt="SCADA-IDS-KC Logo" width="200">
+  
+  # SCADA-IDS-KC
+  
+  **A Python-based Network Intrusion Detection System (IDS) with machine learning-based SYN flood detection**
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Python Version](https://img.shields.io/badge/python-3.12.2-blue.svg)](https://www.python.org/downloads/)
+  [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/your-repo/SCADA-IDS-KC)
+</div>
 
 ## Features
 
