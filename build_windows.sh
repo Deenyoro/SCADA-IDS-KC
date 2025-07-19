@@ -165,6 +165,35 @@ if ! command -v winetricks &>/dev/null; then update_winetricks; fi
 wt_date=$(winetricks --version 2>/dev/null | head -1 | awk '{print $1}' | sed 's/-next//' || echo "20200101")
 if [[ ${wt_date:-20200101} -lt $WINETRICKS_MIN_DATE ]]; then update_winetricks; fi
 
+# ---------- Winetricks Dependencies --------
+ensure_winetricks_deps() {
+  log "[INFO] Ensuring Winetricks dependencies are installed..." "$BLUE"
+  local missing_deps=()
+
+  # Check for required extraction tools
+  for cmd in cabextract 7z unzip; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      case "$cmd" in
+        "7z") missing_deps+=("p7zip-full") ;;
+        *) missing_deps+=("$cmd") ;;
+      esac
+    fi
+  done
+
+  if [[ ${#missing_deps[@]} -gt 0 ]]; then
+    log "[WARN] Missing Winetricks dependencies: ${missing_deps[*]}" "$YELLOW"
+    log "[INFO] Installing missing dependencies for CI/local compatibility..." "$BLUE"
+    sudo apt-get update -qq
+    sudo apt-get install -y --no-install-recommends "${missing_deps[@]}"
+    log "[INFO] ✅ Winetricks dependencies installed successfully" "$GREEN"
+  else
+    log "[INFO] ✅ All Winetricks dependencies present" "$GREEN"
+  fi
+}
+
+# Ensure dependencies before any winetricks operations
+ensure_winetricks_deps
+
 # ---------- MSVC runtime / UCRT ------------
 install_msvc_runtime() {
   log "[INFO] Installing MSVC runtime with SHA256 bypass for CI compatibility…" "$BLUE"

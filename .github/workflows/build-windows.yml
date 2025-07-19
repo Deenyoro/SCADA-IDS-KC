@@ -28,7 +28,18 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
+    - name: Install Winetricks dependencies
+      run: |
+        echo "📦 Installing Winetricks extraction dependencies for CI..."
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          cabextract \
+          p7zip-full \
+          unzip \
+          winbind
+        echo "✅ Winetricks dependencies installed"
+
     - name: Cache Wine and Python installer
       uses: actions/cache@v4
       with:
