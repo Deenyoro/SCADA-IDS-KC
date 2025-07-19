@@ -111,8 +111,21 @@ log "  Wine Prefix: $WINEPREFIX"
 run() {
   local msg=$1; shift
   log "[CMD] $msg" "$CYAN"
-  if "$@"; then :; else
-    log "[ERROR] $msg failed (exit $?)" "$RED"; exit 1; fi
+
+  # Log to file if BUILD_LOG is set (for GitHub Actions)
+  if [[ -n "${BUILD_LOG:-}" ]]; then
+    echo "[$(date)] CMD: $msg" >> "$BUILD_LOG"
+    echo "[$(date)] Executing: $*" >> "$BUILD_LOG"
+  fi
+
+  if "$@"; then
+    [[ -n "${BUILD_LOG:-}" ]] && echo "[$(date)] SUCCESS: $msg" >> "$BUILD_LOG"
+  else
+    local exit_code=$?
+    [[ -n "${BUILD_LOG:-}" ]] && echo "[$(date)] FAILED: $msg (exit $exit_code)" >> "$BUILD_LOG"
+    log "[ERROR] $msg failed (exit $exit_code)" "$RED"
+    exit $exit_code
+  fi
 }
 
 need_cmd(){ command -v "$1" &>/dev/null || { log "Missing $1" "$RED"; exit 1; }; }
@@ -128,7 +141,10 @@ install_wine() {
   sudo wget -NP /etc/apt/sources.list.d/ \
      "https://dl.winehq.org/wine-builds/ubuntu/dists/$(lsb_release -cs)/winehq-$(lsb_release -cs).sources"
   sudo apt update
-  sudo apt install -y --install-recommends winehq-stable winbind
+
+  # Install Wine and required dependencies for GitHub Actions and local builds
+  log "[INFO] Installing Wine and dependencies (cabextract, winbind)…"
+  sudo apt install -y --install-recommends winehq-stable winbind cabextract
 }
 
 if ! command -v wine &>/dev/null; then install_wine; fi
@@ -151,20 +167,51 @@ if [[ ${wt_date:-20200101} -lt $WINETRICKS_MIN_DATE ]]; then update_winetricks; 
 
 # ---------- MSVC runtime / UCRT ------------
 install_msvc_runtime() {
+  log "[INFO] Installing MSVC runtime with SHA256 bypass for CI compatibility…" "$BLUE"
+
+  # Always set WINETRICKS_SHA256=skip to handle hash mismatches in CI
+  export WINETRICKS_SHA256=skip
+
   local tries=0
   while (( tries < 3 )); do
-    if winetricks -q vcrun2022 ; then return 0; fi
-    if grep -q "unknown arg" ~/.cache/winetricks*/log 2>/dev/null; then
-      log "[WARN] vcrun2022 verb missing; self‑updating Winetricks…" "$YELLOW"
-      winetricks --self-update || update_winetricks
+    # Clear cache before each attempt to avoid stale files
+    log "[INFO] Clearing winetricks cache (attempt $((tries + 1))/3)…"
+    rm -rf ~/.cache/winetricks/vcrun* 2>/dev/null || true
+
+    # Try vcrun2022 first (covers VC++ 2015-2022 + UCRT)
+    if WINETRICKS_SHA256=skip winetricks -q --force vcrun2022 2>/dev/null; then
+      log "[INFO] ✅ vcrun2022 installed successfully" "$GREEN"
+      return 0
     fi
-    log "[WARN] Clearing cache & retrying MSVC redist…" "$YELLOW"
-    rm -rf ~/.cache/winetricks/vcrun* ; export WINETRICKS_SHA256=skip
+
+    # Check if vcrun2022 verb is missing and update winetricks
+    if grep -q "unknown arg" ~/.cache/winetricks*/log 2>/dev/null; then
+      log "[WARN] vcrun2022 verb missing; updating Winetricks…" "$YELLOW"
+      winetricks --self-update 2>/dev/null || update_winetricks
+    fi
+
     ((tries++))
+    log "[WARN] vcrun2022 attempt $tries failed, retrying…" "$YELLOW"
   done
-  # Fallback
-  winetricks -q vcrun2019 || {
-    log "[ERROR] Could not install any VC++ runtime – build stopped" "$RED"; exit 1; }
+
+  # Fallback to vcrun2019
+  log "[WARN] vcrun2022 failed, trying vcrun2019 fallback…" "$YELLOW"
+  rm -rf ~/.cache/winetricks/vcrun* 2>/dev/null || true
+  if WINETRICKS_SHA256=skip winetricks -q --force vcrun2019 2>/dev/null; then
+    log "[INFO] ✅ vcrun2019 installed successfully (fallback)" "$GREEN"
+    return 0
+  fi
+
+  # Final fallback - try without force flag
+  log "[WARN] Trying vcrun2019 without force flag…" "$YELLOW"
+  if WINETRICKS_SHA256=skip winetricks -q vcrun2019 2>/dev/null; then
+    log "[INFO] ✅ vcrun2019 installed successfully (final fallback)" "$GREEN"
+    return 0
+  fi
+
+  log "[ERROR] Could not install any VC++ runtime – build stopped" "$RED"
+  log "[ERROR] This will cause NumPy/scikit-learn import failures!" "$RED"
+  exit 1
 }
 
 export WINEPREFIX
@@ -192,15 +239,26 @@ if $FORCE_SETUP || ! wine python.exe -V &>/dev/null; then
 fi
 log "[INFO] Windows Python: $(wine python.exe -V)" "$GREEN"
 
-# ---------- Clean Build (if requested) -----
+# ---------- Setup Build Environment --------
+log "[INFO] Setting up build environment…" "$BLUE"
+
+# Create necessary directories for GitHub Actions and local builds
+mkdir -p dist/ build/ logs/ 2>/dev/null || true
+
+# Clean Build (if requested)
 if $CLEAN; then
   log "[INFO] Cleaning previous build artifacts…" "$BLUE"
-  rm -rf dist/ build/ *.spec.bak .venv/ __pycache__/ 2>/dev/null || true
+  rm -rf dist/* build/* logs/* *.spec.bak .venv/ __pycache__/ 2>/dev/null || true
   find . -name "*.pyc" -delete 2>/dev/null || true
   find . -name "*.pyo" -delete 2>/dev/null || true
   find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
   log "[INFO] Clean completed successfully ✓" "$GREEN"
 fi
+
+# Create build log file for GitHub Actions
+BUILD_LOG="logs/build_$(date +%Y%m%d_%H%M%S).log"
+echo "SCADA-IDS-KC Windows Build Log - $(date)" > "$BUILD_LOG"
+echo "=========================================" >> "$BUILD_LOG"
 
 # ---------- Windows Python Dependencies ----
 log "[INFO] Installing Windows Python dependencies…" "$BLUE"
@@ -469,8 +527,14 @@ fi
 # STEP 12: Generate build report
 log_step "STEP 12: Generating build report"
 
+# Create build report in multiple locations for GitHub Actions compatibility
 build_report_file="build_report_windows_pe_$(date +%Y%m%d-%H%M%S).txt"
+logs_report_file="logs/build_report_$(date +%Y%m%d-%H%M%S).txt"
 
+# Ensure logs directory exists
+mkdir -p logs/ 2>/dev/null || true
+
+# Generate comprehensive build report
 cat > "$build_report_file" << EOF
 === SCADA-IDS-KC TRUE Windows PE Build Report ===
 Build Date: $(date)
@@ -508,7 +572,19 @@ fi
 echo "" >> "$build_report_file"
 echo "Build Status: SUCCESS - TRUE WINDOWS PE EXECUTABLE CREATED!" >> "$build_report_file"
 
+# Copy build report to logs directory for GitHub Actions
+cp "$build_report_file" "$logs_report_file" 2>/dev/null || true
+
+# Finalize build log if it exists
+if [[ -n "${BUILD_LOG:-}" && -f "$BUILD_LOG" ]]; then
+    echo "" >> "$BUILD_LOG"
+    echo "Build completed successfully at $(date)" >> "$BUILD_LOG"
+    echo "Build report: $build_report_file" >> "$BUILD_LOG"
+    echo "Logs report: $logs_report_file" >> "$BUILD_LOG"
+fi
+
 log_info "Build report saved to: $build_report_file"
+log_info "Logs report saved to: $logs_report_file"
 
 # STEP 13: Final output and instructions
 log_step "STEP 13: TRUE Windows PE build complete!"
