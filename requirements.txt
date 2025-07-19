@@ -6,9 +6,9 @@ joblib==1.5.0
 pydantic==2.7.1
 PyYAML==6.0.1
 
-# Notifications
-win10toast-click==0.1.3
+# Notifications (cross-platform)
 plyer==2.1.0
+# win10toast-click==0.1.3  # Windows-only, installed separately during cross-compilation
 
 # Build and packaging
 pyinstaller==6.6.0

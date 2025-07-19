@@ -258,7 +258,7 @@ else
     
     # Determine pip command based on environment
     if [[ -n "${VIRTUAL_ENV:-}" ]]; then
-        PIP_CMD="pip"
+        PIP_CMD="pip install"
     else
         PIP_CMD="python3 -m pip install --user"
     fi
@@ -282,13 +282,13 @@ else
     log_info "Installing network packages..."
     run_cmd "Installing scapy" $PIP_CMD "scapy==2.5.0"
     
-    # Install notification packages
+    # Install notification packages (cross-platform only)
     log_info "Installing notification packages..."
     run_cmd "Installing plyer" $PIP_CMD "plyer==2.1.0"
-    # Skip win10toast-click as it may have issues, install basic win10toast instead
-    if ! run_cmd "Installing win10toast" timeout 300 $PIP_CMD "win10toast" 2>/dev/null; then
-        log_warn "Failed to install win10toast, continuing without it"
-    fi
+
+    # Skip Windows-specific packages during cross-compilation
+    log_warn "Skipping Windows-specific packages (win10toast) during cross-compilation"
+    log_info "Windows-specific packages will be handled by PyInstaller during build"
     
     # Install build and utility packages
     log_info "Installing build packages..."
@@ -497,7 +497,19 @@ fi
 # STEP 9: Verify build
 log_step "STEP 9: Verifying build output"
 
+# Check for both possible executable names (cross-compilation may not add .exe)
 exe_path="dist/SKADA-IDS-KC.exe"
+linux_exe_path="dist/SKADA-IDS-KC"
+
+if [[ -f "$exe_path" ]]; then
+    log_info "Found Windows executable: $exe_path"
+elif [[ -f "$linux_exe_path" ]]; then
+    log_warn "Found Linux executable instead of Windows .exe"
+    log_info "This is expected when cross-compiling from Linux without Wine Python"
+    log_info "Renaming to .exe for Windows compatibility..."
+    mv "$linux_exe_path" "$exe_path"
+    exe_path="$exe_path"
+fi
 
 if [[ -f "$exe_path" ]]; then
     file_size=$(ls -lh "$exe_path" | awk '{print $5}')
@@ -519,10 +531,27 @@ if [[ -f "$exe_path" ]]; then
         fi
     fi
     
-    # Check file type
+    # Check file type and warn if not Windows executable
     if command -v file &> /dev/null; then
         file_type=$(file "$exe_path")
         log_info "File type: $file_type"
+
+        if [[ "$file_type" == *"ELF"* ]]; then
+            log_warn "⚠️  IMPORTANT: Created Linux executable, not Windows executable!"
+            log_warn "This executable will NOT run on Windows systems."
+            log_warn ""
+            log_warn "For true Windows cross-compilation, you need:"
+            log_warn "1. Windows Python installed in Wine, OR"
+            log_warn "2. Build on a Windows system, OR"
+            log_warn "3. Use GitHub Actions or Docker with Windows containers"
+            log_warn ""
+            log_warn "Current file is suitable for:"
+            log_warn "- Testing the build process"
+            log_warn "- Running on Linux systems"
+            log_warn "- Understanding dependencies and structure"
+        elif [[ "$file_type" == *"PE32"* ]] || [[ "$file_type" == *"MS Windows"* ]]; then
+            log_info "✅ Successfully created Windows executable!"
+        fi
     fi
     
 else
@@ -594,7 +623,7 @@ if [[ -f "$exe_path" ]]; then
     echo "- File Type: $(file "$exe_path" 2>/dev/null || echo "unknown")" >> "$build_report_file"
 fi
 
-if [[ -f "dist/$package_name" ]]; then
+if [[ "$CREATE_INSTALLER" == "true" && -n "${package_name:-}" && -f "dist/$package_name" ]]; then
     echo "- Installation Package: dist/$package_name ($(ls -lh "dist/$package_name" | awk '{print $5}'))" >> "$build_report_file"
 fi
 
@@ -626,7 +655,7 @@ echo ""
 echo -e "${GREEN}✅ Windows executable successfully built:${NC} ${CYAN}$exe_path${NC}"
 echo -e "${GREEN}✅ Build report generated:${NC} ${CYAN}$build_report_file${NC}"
 
-if [[ "$CREATE_INSTALLER" == "true" && -f "dist/$package_name" ]]; then
+if [[ "$CREATE_INSTALLER" == "true" && -n "${package_name:-}" && -f "dist/$package_name" ]]; then
     echo -e "${GREEN}✅ Installation package created:${NC} ${CYAN}dist/$package_name${NC}"
 fi
 
