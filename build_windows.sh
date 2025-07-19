@@ -628,11 +628,45 @@ log_info "Building Windows PE executable with enhanced PyInstaller configuration
 # COMPREHENSIVE PYINSTALLER DIAGNOSTICS
 log_info "=== COMPREHENSIVE PYINSTALLER DIAGNOSTICS ==="
 
+# 0. CRITICAL: Test if PyInstaller module can even be imported
+log_info "0. CRITICAL: Testing PyInstaller module import..."
+wine python.exe -c "
+try:
+    import PyInstaller
+    print(f'✅ PyInstaller imported successfully: {PyInstaller.__version__}')
+    print(f'PyInstaller location: {PyInstaller.__file__}')
+except ImportError as e:
+    print(f'❌ CRITICAL: Cannot import PyInstaller: {e}')
+    import sys
+    sys.exit(1)
+except Exception as e:
+    print(f'❌ CRITICAL: PyInstaller import error: {e}')
+    import sys
+    sys.exit(1)
+" 2>&1 | tee "logs/pyinstaller_import_test.log"
+
+if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+    log_error "❌ CRITICAL: PyInstaller cannot be imported - this explains the silent failure!"
+    log_error "PyInstaller is not properly installed or accessible"
+    exit 1
+fi
+
 # 1. Verify PyInstaller version and compatibility
 log_info "1. PyInstaller version and environment check..."
 wine python.exe -m pip show pyinstaller 2>&1 | tee "logs/pyinstaller_version.log"
 wine python.exe --version 2>&1 | tee -a "logs/pyinstaller_version.log"
 wine python.exe -m PyInstaller --version 2>&1 | tee -a "logs/pyinstaller_version.log"
+
+# 1.5. Test PyInstaller command line interface
+log_info "1.5. Testing PyInstaller command line interface..."
+wine python.exe -m PyInstaller --help 2>&1 | head -20 | tee "logs/pyinstaller_help_test.log"
+if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+    log_error "❌ CRITICAL: PyInstaller command line interface not working!"
+    log_error "This explains why no files are created - PyInstaller never starts"
+    exit 1
+else
+    log_info "✅ PyInstaller command line interface working"
+fi
 
 # 2. Directory snapshot BEFORE build
 log_info "2. Directory snapshot BEFORE build..."
@@ -654,10 +688,26 @@ export WINEDEBUG=err+all
 log_info "Wine debug enabled: WINEDEBUG=$WINEDEBUG"
 log_info "Wine DLL overrides: WINEDLLOVERRIDES=$WINEDLLOVERRIDES"
 
-log_info "Running minimal test with MAXIMUM debugging..."
+log_info "Running minimal test with MAXIMUM debugging and REAL-TIME monitoring..."
 log_info "Command: wine python.exe -m PyInstaller test_minimal.py --onedir --name test_minimal --log-level=DEBUG --debug=all"
 
+# Monitor directories in real-time during build
+(
+    sleep 2
+    while true; do
+        echo "=== REAL-TIME MONITORING $(date) ===" >> "logs/realtime_monitoring.log"
+        echo "dist_test contents:" >> "logs/realtime_monitoring.log"
+        ls -la dist_test/ 2>/dev/null >> "logs/realtime_monitoring.log" || echo "dist_test not found" >> "logs/realtime_monitoring.log"
+        echo "build_test contents:" >> "logs/realtime_monitoring.log"
+        ls -la build_test/ 2>/dev/null >> "logs/realtime_monitoring.log" || echo "build_test not found" >> "logs/realtime_monitoring.log"
+        echo "" >> "logs/realtime_monitoring.log"
+        sleep 5
+    done
+) &
+MONITOR_PID=$!
+
 # Run with maximum debugging and capture ALL output
+log_info "Starting PyInstaller with comprehensive monitoring..."
 if wine python.exe -m PyInstaller test_minimal.py \
     --onedir \
     --name test_minimal \
@@ -668,7 +718,14 @@ if wine python.exe -m PyInstaller test_minimal.py \
     --distpath dist_test \
     --workpath build_test 2>&1 | tee "logs/pyinstaller_minimal_debug.log"; then
 
+    # Stop monitoring
+    kill $MONITOR_PID 2>/dev/null || true
+
     log_info "Minimal test completed, checking results..."
+    log_info "Final directory contents:"
+    echo "=== FINAL RESULTS ===" >> "logs/realtime_monitoring.log"
+    find dist_test build_test -type f 2>/dev/null >> "logs/realtime_monitoring.log" || echo "No files found" >> "logs/realtime_monitoring.log"
+
     if [[ -f "dist_test/test_minimal/test_minimal.exe" ]]; then
         log_info "✅ Minimal PyInstaller test successful"
         log_info "Minimal executable size: $(stat -c%s "dist_test/test_minimal/test_minimal.exe" 2>/dev/null || echo "0") bytes"
@@ -708,15 +765,103 @@ if wine python.exe -m PyInstaller test_minimal.py \
         exit 1
     fi
 else
+    # Stop monitoring
+    kill $MONITOR_PID 2>/dev/null || true
+
     log_error "❌ Minimal PyInstaller test failed to run"
+    log_error "This indicates a fundamental PyInstaller execution problem"
+
+    # Try alternative approach - direct Python execution
+    log_info "Trying alternative approach - direct PyInstaller execution..."
+    wine python.exe -c "
+import sys
+sys.path.insert(0, '.')
+try:
+    from PyInstaller.__main__ import run
+    print('✅ PyInstaller main module accessible')
+    # Try to run with minimal args
+    sys.argv = ['pyinstaller', '--help']
+    run()
+except Exception as e:
+    print(f'❌ PyInstaller execution failed: {e}')
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+" 2>&1 | tee "logs/pyinstaller_direct_test.log"
+
+    if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+        log_error "❌ Direct PyInstaller execution also failed"
+        log_error "PyInstaller is fundamentally broken in this environment"
+        exit 1
+    fi
+
     exit 1
 fi
+
+# Create comprehensive environment dump for analysis
+log_info "Creating comprehensive environment dump..."
+cat > "logs/environment_dump.log" << EOF
+=== COMPREHENSIVE ENVIRONMENT DUMP ===
+Date: $(date)
+Working Directory: $(pwd)
+Wine Prefix: $WINEPREFIX
+Wine Version: $(wine --version)
+Wine Debug: $WINEDEBUG
+Wine DLL Overrides: $WINEDLLOVERRIDES
+
+=== PYTHON ENVIRONMENT ===
+Python Version: $(wine python.exe --version 2>&1)
+Python Executable: $(wine python.exe -c "import sys; print(sys.executable)" 2>&1)
+Python Path: $(wine python.exe -c "import sys; print('\\n'.join(sys.path[:10]))" 2>&1)
+Site Packages: $(wine python.exe -c "import site; print(site.getsitepackages())" 2>&1)
+
+=== PYINSTALLER ENVIRONMENT ===
+PyInstaller Version: $(wine python.exe -m pip show pyinstaller 2>&1 | grep Version || echo "Not found")
+PyInstaller Location: $(wine python.exe -c "import PyInstaller; print(PyInstaller.__file__)" 2>&1)
+PyInstaller CLI: $(wine python.exe -m PyInstaller --version 2>&1)
+
+=== WINE ENVIRONMENT ===
+Wine Registry Python: $(wine reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Python\\PythonCore" 2>&1 | head -10 || echo "Not found")
+Wine System32 DLLs: $(ls "$WINEPREFIX/drive_c/windows/system32/"*runtime*.dll 2>/dev/null || echo "No runtime DLLs found")
+
+=== FILE SYSTEM ===
+Current Directory Files: $(ls -la | head -20)
+Logs Directory: $(ls -la logs/ 2>/dev/null || echo "No logs directory")
+
+=== PROCESS INFORMATION ===
+Wine Processes: $(ps aux | grep wine | head -5 || echo "No wine processes")
+EOF
+
+log_info "Environment dump created in logs/environment_dump.log"
 
 # Clean up minimal test
 rm -rf dist_test/ build_test/ test_minimal.py test_minimal.spec 2>/dev/null || true
 
+# ULTRA-MINIMAL PyInstaller test (absolute bare minimum)
+log_info "4. ULTRA-MINIMAL PyInstaller test (absolute bare minimum)..."
+cat > ultra_minimal.py << 'EOF'
+print("Hello World")
+EOF
+
+log_info "Testing PyInstaller with absolute minimum configuration..."
+if wine python.exe -m PyInstaller ultra_minimal.py --onefile --distpath ultra_dist 2>&1 | tee "logs/ultra_minimal_test.log"; then
+    if [[ -f "ultra_dist/ultra_minimal.exe" ]]; then
+        log_info "✅ ULTRA-MINIMAL test succeeded - PyInstaller works!"
+        log_info "Issue is with our application or configuration, not PyInstaller itself"
+    else
+        log_error "❌ ULTRA-MINIMAL test failed - PyInstaller fundamentally broken"
+        log_error "Contents of ultra_dist/: $(ls -la ultra_dist/ 2>/dev/null || echo 'empty')"
+    fi
+else
+    log_error "❌ ULTRA-MINIMAL PyInstaller command failed to execute"
+    log_error "PyInstaller is completely non-functional"
+fi
+
+# Clean up ultra minimal test
+rm -rf ultra_dist/ ultra_minimal.py ultra_minimal.spec 2>/dev/null || true
+
 # Test main application imports before building
-log_info "Testing main application imports in Windows Python..."
+log_info "5. Testing main application imports in Windows Python..."
 wine python.exe << 'EOF'
 import sys
 sys.path.insert(0, 'src')
