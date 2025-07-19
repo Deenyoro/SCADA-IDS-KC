@@ -443,14 +443,58 @@ class MLDetector:
             return False
     
     def _safe_load_joblib(self, file_path: Path) -> Optional[Any]:
-        """Safely load joblib file with error handling."""
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")  # Suppress joblib warnings
-                return joblib.load(file_path)
-        except Exception as e:
-            logger.error(f"Error loading joblib file {file_path}: {e}")
+        """Safely load joblib file with error handling and PyInstaller compatibility."""
+        if not file_path.exists():
+            logger.error(f"Model file not found: {file_path}")
             return None
+            
+        # Try multiple loading methods for PyInstaller compatibility
+        methods = [
+            ("standard joblib.load", lambda: joblib.load(file_path)),
+            ("joblib with mmap disabled", lambda: joblib.load(file_path, mmap_mode=None)),
+            ("pickle fallback", lambda: self._load_with_pickle(file_path)),
+            ("copy and load", lambda: self._copy_and_load(file_path))
+        ]
+        
+        for method_name, load_func in methods:
+            try:
+                logger.debug(f"Trying {method_name} for {file_path}")
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")  # Suppress joblib warnings
+                    result = load_func()
+                    if result is not None:
+                        logger.info(f"Successfully loaded {file_path} using {method_name}")
+                        return result
+            except Exception as e:
+                logger.debug(f"{method_name} failed for {file_path}: {e}")
+                continue
+        
+        logger.error(f"All loading methods failed for {file_path}")
+        return None
+    
+    def _load_with_pickle(self, file_path: Path) -> Optional[Any]:
+        """Try loading with pickle directly."""
+        import pickle
+        with open(file_path, 'rb') as f:
+            return pickle.load(f)
+    
+    def _copy_and_load(self, file_path: Path) -> Optional[Any]:
+        """Copy file to temp location and load (PyInstaller fix)."""
+        import tempfile
+        import shutil
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.joblib') as tmp:
+            shutil.copy2(file_path, tmp.name)
+            tmp_path = Path(tmp.name)
+            
+        try:
+            result = joblib.load(tmp_path)
+            return result
+        finally:
+            try:
+                tmp_path.unlink()
+            except:
+                pass
     
     def _calculate_file_hash(self, file_path: Path) -> str:
         """Calculate SHA-256 hash of file for integrity checking."""

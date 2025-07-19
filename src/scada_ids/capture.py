@@ -134,49 +134,110 @@ class PacketSniffer:
             # On non-Windows, just return the interface names as-is
             return [{'guid': iface, 'name': iface} for iface in interfaces]
         
-        # On Windows, try to get friendly names
+        # On Windows, try multiple methods to get friendly names
         interface_map = []
+        guid_to_name = {}
         
+        # Method 1: Try Windows Registry approach (works in compiled executables)
         try:
-            # Try using PowerShell to get network adapter info
-            cmd = 'powershell -Command "Get-NetAdapter | Select-Object -Property InterfaceGuid,Name,Status | ConvertTo-Json"'
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+            import winreg
             
-            if result.returncode == 0 and result.stdout:
+            # Access the network interfaces registry key
+            reg_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                   r"SYSTEM\CurrentControlSet\Control\Network\{4D36E972-E325-11CE-BFC1-08002BE10318}")
+            
+            for i in range(1000):  # Reasonable limit
                 try:
-                    adapters = json.loads(result.stdout)
-                    if not isinstance(adapters, list):
-                        adapters = [adapters]
-                    
-                    # Create a mapping of GUIDs to friendly names
-                    guid_to_name = {}
-                    for adapter in adapters:
-                        guid = adapter.get('InterfaceGuid', '').strip('{}')
-                        name = adapter.get('Name', '')
-                        status = adapter.get('Status', '')
-                        if guid and name:
-                            # Include status in name if not "Up"
-                            if status and status != 'Up':
-                                name = f"{name} ({status})"
-                            guid_to_name[guid.upper()] = name
-                    
-                    # Match our interfaces with friendly names
-                    for iface in interfaces:
-                        # Extract GUID from interface string
-                        guid = iface.strip('{}').upper()
-                        friendly_name = guid_to_name.get(guid, iface)
-                        interface_map.append({'guid': iface, 'name': friendly_name})
-                    
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse network adapter JSON")
-                    interface_map = [{'guid': iface, 'name': iface} for iface in interfaces]
-            else:
-                logger.warning("Failed to get network adapter names from PowerShell")
-                interface_map = [{'guid': iface, 'name': iface} for iface in interfaces]
-                
+                    subkey_name = winreg.EnumKey(reg_key, i)
+                    if subkey_name.startswith('{') and subkey_name.endswith('}'):
+                        # Try to get the connection info
+                        try:
+                            conn_key = winreg.OpenKey(reg_key, f"{subkey_name}\\Connection")
+                            friendly_name, _ = winreg.QueryValueEx(conn_key, "Name")
+                            guid = subkey_name.strip('{}').upper()
+                            guid_to_name[guid] = friendly_name
+                            winreg.CloseKey(conn_key)
+                        except (WindowsError, FileNotFoundError):
+                            continue
+                except OSError:
+                    break
+            
+            winreg.CloseKey(reg_key)
+            logger.info(f"Found {len(guid_to_name)} interface names via registry")
+            
         except Exception as e:
-            logger.warning(f"Failed to get friendly interface names: {e}")
-            interface_map = [{'guid': iface, 'name': iface} for iface in interfaces]
+            logger.debug(f"Registry method failed: {e}")
+        
+        # Method 2: Try PowerShell (if registry failed or incomplete)
+        if len(guid_to_name) == 0:
+            try:
+                # Try using PowerShell with more explicit execution policy
+                cmd = ['powershell.exe', '-ExecutionPolicy', 'Bypass', '-NoProfile', '-Command', 
+                       "Get-NetAdapter | Select-Object -Property InterfaceGuid,Name,Status | ConvertTo-Json"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
+                
+                if result.returncode == 0 and result.stdout:
+                    try:
+                        adapters = json.loads(result.stdout)
+                        if not isinstance(adapters, list):
+                            adapters = [adapters]
+                        
+                        # Create a mapping of GUIDs to friendly names
+                        for adapter in adapters:
+                            guid = adapter.get('InterfaceGuid', '').strip('{}')
+                            name = adapter.get('Name', '')
+                            status = adapter.get('Status', '')
+                            if guid and name:
+                                # Include status in name if not "Up"
+                                if status and status != 'Up':
+                                    name = f"{name} ({status})"
+                                guid_to_name[guid.upper()] = name
+                        
+                        logger.info(f"Found {len(guid_to_name)} interface names via PowerShell")
+                        
+                    except json.JSONDecodeError:
+                        logger.warning("Failed to parse network adapter JSON")
+                else:
+                    logger.warning("PowerShell command failed or returned no data")
+                    
+            except Exception as e:
+                logger.warning(f"PowerShell method failed: {e}")
+        
+        # Method 3: Try WMI as fallback
+        if len(guid_to_name) == 0:
+            try:
+                import wmi
+                c = wmi.WMI()
+                for adapter in c.Win32_NetworkAdapter():
+                    if adapter.GUID and adapter.NetConnectionID:
+                        guid = adapter.GUID.strip('{}').upper()
+                        name = adapter.NetConnectionID
+                        if adapter.NetConnectionStatus == 2:  # Connected
+                            name = f"{name} (Connected)"
+                        elif adapter.NetConnectionStatus == 7:  # Media disconnected
+                            name = f"{name} (Disconnected)"
+                        guid_to_name[guid] = name
+                
+                logger.info(f"Found {len(guid_to_name)} interface names via WMI")
+                
+            except ImportError:
+                logger.debug("WMI module not available")
+            except Exception as e:
+                logger.debug(f"WMI method failed: {e}")
+        
+        # Match our interfaces with friendly names
+        for iface in interfaces:
+            # Extract GUID from interface string
+            guid = iface.strip('{}').upper()
+            friendly_name = guid_to_name.get(guid)
+            
+            if friendly_name:
+                interface_map.append({'guid': iface, 'name': friendly_name})
+            else:
+                # Generate a more user-friendly fallback name
+                interface_index = len(interface_map) + 1
+                fallback_name = f"Network Interface {interface_index}"
+                interface_map.append({'guid': iface, 'name': fallback_name})
         
         return interface_map
     

@@ -3,7 +3,14 @@
     "allow": [
       "Bash(.SCADA-IDS-KC.exe --help)",
       "Bash(SCADA-IDS-KC.exe --help)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(\".\\dist\\SCADA-IDS-KC.exe\" --cli --interfaces)",
+      "Bash(\".\\dist\\SCADA-IDS-KC.exe\" --cli --interfaces-detailed)",
+      "Bash(\".\\dist\\SCADA-IDS-KC.exe\" --version)",
+      "Bash(\".\\dist\\SCADA-IDS-KC.exe\" --cli --load-model \"models\\results_enhanced_data-spoofing\\trained_models\\RandomForest.joblib\" --load-scaler \"models\\results_enhanced_data-spoofing\\trained_models\\standard_scaler.joblib\")",
+      "Bash(\".\\dist\\SCADA-IDS-KC.exe\" --help)",
+      "Bash(\".\\dist\\SCADA-IDS-KC.exe\" --cli --load-model \"models\\results_enhanced_data-spoofing\\trained_models\\RandomForest.joblib\" --load-scaler \"models\\results_enhanced_data-spoofing\\trained_models\\standard_scaler.joblib\" --monitor --interface \"{80BA75DE-7DE3-49C3-8199-FF23263F0827}\" --duration 10)",
+      "Bash(python:*)"
     ],
     "deny": []
   }
