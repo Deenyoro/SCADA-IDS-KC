@@ -147,7 +147,9 @@ if ($Offline) {
     )
     
     $buildPackages = @(
-        "pyinstaller==6.6.0",
+        "pyinstaller>=6.14,<7",
+        "pyinstaller-hooks-contrib",
+        "pywin32-ctypes",
         "pydantic==2.7.1"
     )
     
@@ -233,9 +235,41 @@ try {
 
 # Build executable with PyInstaller
 Write-Host "Building executable with PyInstaller..." -ForegroundColor Yellow
+
+# Create required directories
+New-Item -ItemType Directory -Force -Path dist, logs, build | Out-Null
+
 # Set environment for build
 $env:PYTHONPATH = "src"
-pyinstaller packaging\scada_windows.spec --noconfirm --clean --log-level INFO
+
+# Build with PyInstaller using the same approach as GitHub Actions (which works)
+Write-Host "Building with PyInstaller using GitHub Actions proven method..." -ForegroundColor Cyan
+pyinstaller --onefile `
+  --name SCADA-IDS-KC `
+  --paths src `
+  --hidden-import=scada_ids `
+  --hidden-import=scada_ids.settings `
+  --hidden-import=scada_ids.controller `
+  --hidden-import=scada_ids.capture `
+  --hidden-import=scada_ids.features `
+  --hidden-import=scada_ids.ml `
+  --hidden-import=scada_ids.notifier `
+  --hidden-import=ui `
+  --hidden-import=ui.main_window `
+  --hidden-import=pydoc `
+  --collect-all sklearn `
+  --collect-all scipy `
+  --collect-all numpy `
+  --collect-all joblib `
+  --add-data "config;config" `
+  --add-data "src;src" `
+  --add-data "models;models" `
+  --noconfirm `
+  --clean `
+  --log-level INFO `
+  --distpath dist `
+  --workpath build `
+  main.py
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "PyInstaller build failed"

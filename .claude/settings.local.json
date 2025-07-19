@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.SCADA-IDS-KC.exe --help)",
+      "Bash(SCADA-IDS-KC.exe --help)",
+      "Bash(powershell:*)"
+    ],
+    "deny": []
+  }
+}
