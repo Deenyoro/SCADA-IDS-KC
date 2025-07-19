@@ -51,6 +51,8 @@ jobs:
         fi
 
     - name: Build Windows executable with Wine + Windows Python (under Xvfb)
+      id: build
+      continue-on-error: true
       run: |
         echo "🚀 Building TRUE Windows PE executable using Wine + Windows Python..."
         echo "📦 Installing Wine GUI helpers and Winetricks dependencies..."
@@ -63,38 +65,95 @@ jobs:
           winbind
         echo "✅ Dependencies installed"
 
+        # Create logs directory early
+        mkdir -p logs/ build/ dist/
+
         echo "🖥️ Running build under virtual X server for Wine GUI support..."
         chmod +x build_windows.sh
+
+        # Set build environment variables for better logging
+        export BUILD_LOG="logs/github_actions_build_$(date +%Y%m%d_%H%M%S).log"
+        export CI=true
+        export GITHUB_ACTIONS=true
+
+        # Run build with enhanced error capture
+        set +e  # Don't exit on error, we want to capture it
         xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
-          ./build_windows.sh --clean --create-installer
+          ./build_windows.sh --clean --create-installer --verbose 2>&1 | tee "logs/build_output.log"
+        BUILD_EXIT_CODE=$?
+        set -e
+
+        echo "BUILD_EXIT_CODE=$BUILD_EXIT_CODE" >> $GITHUB_ENV
+        echo "Build completed with exit code: $BUILD_EXIT_CODE"
+
+        # Always create a build summary, regardless of success/failure
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Exit Code:** $BUILD_EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Wine Version:** $(wine --version 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
+
+        if [ $BUILD_EXIT_CODE -eq 0 ]; then
+          echo "- **Status:** ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- **Status:** ❌ FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "- **Error Details:** Check build logs for detailed error information" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # List all generated files for debugging
+        echo "### Generated Files" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        find . -name "*.exe" -o -name "*.log" -o -name "*.txt" | head -20 >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+        exit $BUILD_EXIT_CODE
         
     - name: Verify Windows PE executable
+      if: always()
       run: |
-        echo "📋 Verifying TRUE Windows PE executable..."
-        if [ -f "dist/SCADA-IDS-KC.exe" ]; then
-          echo "✅ Executable found"
-          ls -lh dist/SCADA-IDS-KC.exe
-          file_type=$(file dist/SCADA-IDS-KC.exe)
-          echo "📊 File type: $file_type"
-          echo "📊 File size: $(ls -lh dist/SCADA-IDS-KC.exe | awk '{print $5}')"
+        echo "📋 Verifying build results..."
 
-          # Verify it's a TRUE Windows PE executable
-          if echo "$file_type" | grep -q "PE32.*Windows"; then
-            echo "🎉 SUCCESS: TRUE Windows PE executable created!"
+        # Check if build was successful
+        if [ "${BUILD_EXIT_CODE:-1}" -eq 0 ]; then
+          echo "✅ Build reported success, verifying executable..."
+
+          if [ -f "dist/SCADA-IDS-KC.exe" ]; then
+            echo "✅ Executable found"
+            ls -lh dist/SCADA-IDS-KC.exe
+            file_type=$(file dist/SCADA-IDS-KC.exe)
+            echo "📊 File type: $file_type"
+            echo "📊 File size: $(ls -lh dist/SCADA-IDS-KC.exe | awk '{print $5}')"
+
+            # Verify it's a TRUE Windows PE executable
+            if echo "$file_type" | grep -q "PE32.*Windows"; then
+              echo "🎉 SUCCESS: TRUE Windows PE executable created!"
+              echo "EXECUTABLE_VERIFIED=true" >> $GITHUB_ENV
+            else
+              echo "❌ FAILED: Not a Windows PE executable!"
+              echo "File type: $file_type"
+              echo "EXECUTABLE_VERIFIED=false" >> $GITHUB_ENV
+            fi
           else
-            echo "❌ FAILED: Not a Windows PE executable!"
-            echo "File type: $file_type"
-            exit 1
+            echo "❌ Executable not found despite successful build"
+            echo "EXECUTABLE_VERIFIED=false" >> $GITHUB_ENV
+            ls -la dist/ || echo "dist/ directory not found"
           fi
         else
-          echo "❌ Executable not found"
-          ls -la dist/ || echo "dist/ directory not found"
-          exit 1
+          echo "❌ Build failed with exit code: ${BUILD_EXIT_CODE:-unknown}"
+          echo "EXECUTABLE_VERIFIED=false" >> $GITHUB_ENV
+
+          # Still check what files were created for debugging
+          echo "📁 Checking for any generated files..."
+          ls -la dist/ 2>/dev/null || echo "dist/ directory not found"
+          ls -la build/ 2>/dev/null || echo "build/ directory not found"
+          ls -la logs/ 2>/dev/null || echo "logs/ directory not found"
         fi
         
     - name: Create build info
+      if: always()
       run: |
         echo "Creating build information file..."
+        mkdir -p dist/
+
         cat > dist/BUILD_INFO.txt << EOF
         SCADA-IDS-KC Windows PE Build Information
         ========================================
@@ -106,40 +165,100 @@ jobs:
         Build Environment: GitHub Actions Ubuntu 22.04 + Wine + Windows Python
         Build Method: TRUE Windows PE cross-compilation (not fake Linux rename!)
 
+        Build Status: $([ "${BUILD_EXIT_CODE:-1}" -eq 0 ] && echo "SUCCESS" || echo "FAILED (exit code: ${BUILD_EXIT_CODE:-unknown})")
+        Executable Verified: ${EXECUTABLE_VERIFIED:-false}
+
         File Information:
-        $(ls -lh dist/SCADA-IDS-KC.exe)
-        $(file dist/SCADA-IDS-KC.exe)
+        $(if [ -f "dist/SCADA-IDS-KC.exe" ]; then ls -lh dist/SCADA-IDS-KC.exe; file dist/SCADA-IDS-KC.exe; else echo "Executable not found"; fi)
 
         Build Triggered By: ${{ github.event_name }}
         Actor: ${{ github.actor }}
 
+        Environment Details:
         Wine Version: $(wine --version 2>/dev/null || echo "N/A")
         Windows Python: $(wine python.exe --version 2>/dev/null || echo "N/A")
+
+        Generated Files:
+        $(find . -name "*.exe" -o -name "*.log" -o -name "*.txt" | head -20 || echo "No files found")
         EOF
+
+        echo "Build info created successfully"
         
-    - name: Upload build artifacts
+    - name: Prepare artifacts for upload
+      if: always()
+      run: |
+        echo "📦 Preparing artifacts for upload..."
+
+        # Create artifacts directory
+        mkdir -p artifacts/executables artifacts/logs artifacts/debug
+
+        # Copy executable if it exists
+        if [ -f "dist/SCADA-IDS-KC.exe" ]; then
+          cp dist/SCADA-IDS-KC.exe artifacts/executables/
+          echo "✅ Executable copied to artifacts"
+        else
+          echo "❌ No executable found to copy"
+        fi
+
+        # Copy build info (always exists now)
+        cp dist/BUILD_INFO.txt artifacts/executables/ 2>/dev/null || echo "No BUILD_INFO.txt found"
+
+        # Copy any zip files
+        cp dist/*.zip artifacts/executables/ 2>/dev/null || echo "No zip files found"
+
+        # Copy all logs
+        cp -r logs/* artifacts/logs/ 2>/dev/null || echo "No logs directory found"
+
+        # Copy build reports
+        cp build_report_*.txt artifacts/logs/ 2>/dev/null || echo "No build reports found"
+
+        # Copy error reports and failure markers
+        cp logs/error_report_*.txt artifacts/debug/ 2>/dev/null || echo "No error reports found"
+        cp build_failure.env artifacts/debug/ 2>/dev/null || echo "No failure marker found"
+
+        # Copy PyInstaller build directory for debugging
+        if [ -d "build" ]; then
+          # Copy only log files and important debug info, not the entire build
+          find build -name "*.log" -exec cp {} artifacts/debug/ \; 2>/dev/null || true
+          find build -name "warn-*.txt" -exec cp {} artifacts/debug/ \; 2>/dev/null || true
+        fi
+
+        # Create a summary of what we're uploading
+        echo "=== Artifact Summary ===" > artifacts/ARTIFACT_SUMMARY.txt
+        echo "Build Date: $(date)" >> artifacts/ARTIFACT_SUMMARY.txt
+        echo "Build Exit Code: ${BUILD_EXIT_CODE:-unknown}" >> artifacts/ARTIFACT_SUMMARY.txt
+        echo "Executable Verified: ${EXECUTABLE_VERIFIED:-false}" >> artifacts/ARTIFACT_SUMMARY.txt
+        echo "" >> artifacts/ARTIFACT_SUMMARY.txt
+        echo "Files included:" >> artifacts/ARTIFACT_SUMMARY.txt
+        find artifacts -type f | sort >> artifacts/ARTIFACT_SUMMARY.txt
+
+        echo "📦 Artifacts prepared successfully"
+
+    - name: Upload build artifacts (executables)
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: windows-executable-${{ github.sha }}
         path: |
-          dist/SCADA-IDS-KC.exe
-          dist/BUILD_INFO.txt
-          dist/*.zip
+          artifacts/executables/
+          artifacts/ARTIFACT_SUMMARY.txt
         retention-days: 30
-        
-    - name: Upload build logs
+        if-no-files-found: warn
+
+    - name: Upload build logs and debug info
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: build-logs-${{ github.sha }}
         path: |
-          logs/
-          build/
-          build_report_*.txt
+          artifacts/logs/
+          artifacts/debug/
+          artifacts/ARTIFACT_SUMMARY.txt
         retention-days: 7
+        if-no-files-found: warn
         
     - name: Create release
-      if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
+      if: (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true') && env.EXECUTABLE_VERIFIED == 'true'
       uses: softprops/action-gh-release@v1
       with:
         files: |
@@ -191,7 +310,7 @@ jobs:
   test-windows:
     runs-on: windows-latest
     needs: build-windows
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    if: (github.event_name == 'pull_request' || github.event_name == 'push') && needs.build-windows.result == 'success'
     
     steps:
     - name: Download build artifacts

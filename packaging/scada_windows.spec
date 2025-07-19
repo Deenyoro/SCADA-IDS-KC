@@ -340,13 +340,15 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 icon_file = None
 print("  Skipping icon to avoid format issues - executable will use default icon")
 
-# Create Windows executable with enhanced cross-compilation settings
+# Create Windows executable with enhanced cross-compilation settings (ONEFILE)
 exe = EXE(
     pyz,
     a.scripts,
-    [],  # Empty for onedir build
-    exclude_binaries=True,  # Enable onedir build
-    name='SCADA-IDS-KC.exe',  # Force .exe extension for Windows
+    a.binaries,  # Include binaries for onefile build
+    a.zipfiles,  # Include zipfiles for onefile build
+    a.datas,     # Include data files for onefile build
+    [],
+    name='SCADA-IDS-KC',  # Name without .exe (PyInstaller adds it automatically)
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,  # Keep symbols for better error reporting
@@ -359,7 +361,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=icon_file,
-    append_pkg=False,
     # Additional Windows-specific options (optional version resource)
     **vers_param,
 )
@@ -382,6 +383,7 @@ exe.version_info = {
 }
 
 print(f"PyInstaller configuration completed:")
+print(f"  Build type: ONEFILE")
 print(f"  Executable name: SCADA-IDS-KC.exe")
 print(f"  Console mode: True")
 print(f"  Icon: {icon_file or 'None'}")
@@ -389,14 +391,5 @@ print(f"  Data files: {len(datas)}")
 print(f"  Hidden imports: {len(['pydoc'] + hidden_ml + hidden_imports_list)}")
 print(f"  Excludes: {len(excludes)}")
 
-# Create a directory distribution for onedir build
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=False,
-    upx_exclude=[],
-    name='SCADA-IDS-KC'
-)
+# Note: COLLECT section removed for onefile build
+# The exe object above contains everything needed for a single executable file

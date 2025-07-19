@@ -107,25 +107,108 @@ log "  Build User: $(whoami)"
 log "  Working Directory: $SCRIPT_DIR"
 log "  Wine Prefix: $WINEPREFIX"
 
-# ---------- Helpers ------------------------
+# ---------- Enhanced Error Handling and Logging ------------------------
+# Enhanced logging function with better error capture
 run() {
   local msg=$1; shift
   log "[CMD] $msg" "$CYAN"
 
-  # Log to file if BUILD_LOG is set (for GitHub Actions)
-  if [[ -n "${BUILD_LOG:-}" ]]; then
-    echo "[$(date)] CMD: $msg" >> "$BUILD_LOG"
-    echo "[$(date)] Executing: $*" >> "$BUILD_LOG"
+  # Create logs directory if it doesn't exist
+  mkdir -p logs/ 2>/dev/null || true
+
+  # Set BUILD_LOG if not already set
+  if [[ -z "${BUILD_LOG:-}" ]]; then
+    BUILD_LOG="logs/build_$(date +%Y%m%d_%H%M%S).log"
+    echo "SCADA-IDS-KC Windows Build Log - $(date)" > "$BUILD_LOG"
+    echo "=========================================" >> "$BUILD_LOG"
   fi
 
-  if "$@"; then
-    [[ -n "${BUILD_LOG:-}" ]] && echo "[$(date)] SUCCESS: $msg" >> "$BUILD_LOG"
+  # Log command details
+  echo "[$(date)] CMD: $msg" >> "$BUILD_LOG"
+  echo "[$(date)] Executing: $*" >> "$BUILD_LOG"
+  echo "[$(date)] Working directory: $(pwd)" >> "$BUILD_LOG"
+  echo "[$(date)] Environment: WINEPREFIX=$WINEPREFIX DISPLAY=${DISPLAY:-unset}" >> "$BUILD_LOG"
+
+  # Execute command with detailed error capture
+  local temp_log=$(mktemp)
+  local exit_code=0
+
+  if "$@" 2>&1 | tee "$temp_log"; then
+    echo "[$(date)] SUCCESS: $msg" >> "$BUILD_LOG"
+    cat "$temp_log" >> "$BUILD_LOG"
+    rm -f "$temp_log"
   else
-    local exit_code=$?
-    [[ -n "${BUILD_LOG:-}" ]] && echo "[$(date)] FAILED: $msg (exit $exit_code)" >> "$BUILD_LOG"
+    exit_code=$?
+    echo "[$(date)] FAILED: $msg (exit $exit_code)" >> "$BUILD_LOG"
+    echo "[$(date)] Error output:" >> "$BUILD_LOG"
+    cat "$temp_log" >> "$BUILD_LOG"
+    echo "[$(date)] System info at failure:" >> "$BUILD_LOG"
+    echo "  Wine version: $(wine --version 2>/dev/null || echo 'N/A')" >> "$BUILD_LOG"
+    echo "  Python version: $(wine python.exe --version 2>/dev/null || echo 'N/A')" >> "$BUILD_LOG"
+    echo "  Disk space: $(df -h . 2>/dev/null || echo 'N/A')" >> "$BUILD_LOG"
+    echo "  Memory usage: $(free -h 2>/dev/null || echo 'N/A')" >> "$BUILD_LOG"
+
     log "[ERROR] $msg failed (exit $exit_code)" "$RED"
+    log "[ERROR] Check build log for details: $BUILD_LOG" "$RED"
+
+    # Create error report for GitHub Actions
+    create_error_report "$msg" "$exit_code" "$temp_log"
+
+    rm -f "$temp_log"
     exit $exit_code
   fi
+}
+
+# Create detailed error report for debugging
+create_error_report() {
+  local failed_step="$1"
+  local exit_code="$2"
+  local error_log="$3"
+
+  local error_report="logs/error_report_$(date +%Y%m%d_%H%M%S).txt"
+
+  cat > "$error_report" << EOF
+=== SCADA-IDS-KC Build Error Report ===
+Timestamp: $(date)
+Failed Step: $failed_step
+Exit Code: $exit_code
+Build Host: $(hostname)
+Working Directory: $(pwd)
+
+Environment:
+- Wine Version: $(wine --version 2>/dev/null || echo 'N/A')
+- Wine Prefix: $WINEPREFIX
+- Display: ${DISPLAY:-unset}
+- Python Version: $(wine python.exe --version 2>/dev/null || echo 'N/A')
+
+System Resources:
+- Disk Space: $(df -h . 2>/dev/null || echo 'N/A')
+- Memory: $(free -h 2>/dev/null || echo 'N/A')
+- Load Average: $(uptime 2>/dev/null || echo 'N/A')
+
+Error Output:
+$(cat "$error_log" 2>/dev/null || echo 'No error log available')
+
+Recent Build Log (last 50 lines):
+$(tail -50 "$BUILD_LOG" 2>/dev/null || echo 'No build log available')
+
+Directory Contents:
+- dist/: $(ls -la dist/ 2>/dev/null || echo 'Directory not found')
+- build/: $(ls -la build/ 2>/dev/null || echo 'Directory not found')
+- logs/: $(ls -la logs/ 2>/dev/null || echo 'Directory not found')
+
+Wine Configuration:
+$(wine winecfg /v 2>/dev/null || echo 'Wine config not available')
+
+Process List:
+$(ps aux | grep -E "(wine|python|Xvfb)" || echo 'No relevant processes')
+EOF
+
+  log "[ERROR] Detailed error report created: $error_report" "$RED"
+
+  # Also create a simple error marker for GitHub Actions
+  echo "BUILD_FAILED_AT_STEP=$failed_step" > "build_failure.env"
+  echo "BUILD_EXIT_CODE=$exit_code" >> "build_failure.env"
 }
 
 need_cmd(){ command -v "$1" &>/dev/null || { log "Missing $1" "$RED"; exit 1; }; }
@@ -498,27 +581,102 @@ mkdir -p dist
 log_info "Building Windows executable using Windows Python in Wine..."
 log_info "This will create a REAL Windows PE executable!"
 
-# Build with Windows PyInstaller using --collect-all approach (fixes ML library bundling)
-log_info "Using --collect-all approach to ensure ML libraries are properly bundled..."
-run_cmd "Building Windows PE executable" wine python.exe -m PyInstaller \
-    --onefile \
-    --name SCADA-IDS-KC \
-    --collect-all sklearn \
-    --collect-all scipy \
-    --collect-all numpy \
-    --collect-all joblib \
-    --hidden-import=pydoc \
-    --noconfirm \
-    --clean \
-    --log-level INFO \
-    --distpath dist \
-    --workpath build \
-    main.py
+# Build with Windows PyInstaller using enhanced configuration
+log_info "Building Windows PE executable with enhanced PyInstaller configuration..."
+
+# Try multiple build approaches in order of preference
+build_success=false
+
+# Approach 1: Use the main spec file
+if [[ -f "packaging/scada_windows.spec" ]] && [[ "$build_success" == "false" ]]; then
+    log_info "Attempt 1: Using main PyInstaller spec file..."
+    if wine python.exe -m PyInstaller \
+        --noconfirm \
+        --clean \
+        --log-level DEBUG \
+        --distpath dist \
+        --workpath build \
+        packaging/scada_windows.spec 2>&1 | tee "logs/pyinstaller_main.log"; then
+        log_info "✅ Main spec file build succeeded"
+        build_success=true
+    else
+        log_warn "❌ Main spec file build failed, trying fallback..."
+    fi
+fi
+
+# Approach 2: Use the simple spec file as fallback
+if [[ -f "packaging/scada_simple.spec" ]] && [[ "$build_success" == "false" ]]; then
+    log_info "Attempt 2: Using simple PyInstaller spec file..."
+    if wine python.exe -m PyInstaller \
+        --noconfirm \
+        --clean \
+        --log-level DEBUG \
+        --distpath dist \
+        --workpath build \
+        packaging/scada_simple.spec 2>&1 | tee "logs/pyinstaller_simple.log"; then
+        log_info "✅ Simple spec file build succeeded"
+        build_success=true
+    else
+        log_warn "❌ Simple spec file build failed, trying command-line..."
+    fi
+fi
+
+# Approach 3: Command-line approach as final fallback
+if [[ "$build_success" == "false" ]]; then
+    log_info "Attempt 3: Using command-line PyInstaller approach..."
+    run "Building Windows PE executable with CLI fallback" wine python.exe -m PyInstaller \
+        --onefile \
+        --name SCADA-IDS-KC \
+        --collect-all sklearn \
+        --collect-all scipy \
+        --collect-all numpy \
+        --collect-all joblib \
+        --hidden-import=pydoc \
+        --hidden-import=scada_ids \
+        --hidden-import=ui \
+        --add-data "config:config" \
+        --noconfirm \
+        --clean \
+        --log-level DEBUG \
+        --distpath dist \
+        --workpath build \
+        main.py
+    build_success=true
+fi
+
+if [[ "$build_success" == "true" ]]; then
+    log_info "✅ PyInstaller build completed successfully"
+else
+    log_error "❌ All PyInstaller build approaches failed"
+    exit 1
+fi
 
 # STEP 10: Verify TRUE Windows build
 log_step "STEP 10: Verifying TRUE Windows PE executable"
 
-exe_path="dist/SCADA-IDS-KC.exe"
+# Check for executable with different possible names/locations
+exe_path=""
+possible_paths=(
+    "dist/SCADA-IDS-KC.exe"
+    "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe"
+    "dist/main.exe"
+    "dist/main/main.exe"
+)
+
+for path in "${possible_paths[@]}"; do
+    if [[ -f "$path" ]]; then
+        exe_path="$path"
+        log_info "Found executable at: $exe_path"
+        break
+    fi
+done
+
+# If found in subdirectory, move to expected location
+if [[ -n "$exe_path" && "$exe_path" != "dist/SCADA-IDS-KC.exe" ]]; then
+    log_info "Moving executable to standard location..."
+    cp "$exe_path" "dist/SCADA-IDS-KC.exe"
+    exe_path="dist/SCADA-IDS-KC.exe"
+fi
 
 if [[ -f "$exe_path" ]]; then
     file_size=$(ls -lh "$exe_path" | awk '{print $5}')
