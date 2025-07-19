@@ -584,30 +584,105 @@ log_info "This will create a REAL Windows PE executable!"
 # Build with Windows PyInstaller using enhanced configuration
 log_info "Building Windows PE executable with enhanced PyInstaller configuration..."
 
+# First, test PyInstaller with a minimal example to ensure it works
+log_info "Testing PyInstaller functionality with minimal example..."
+cat > test_minimal.py << 'EOF'
+print("Hello from PyInstaller test!")
+import sys
+print(f"Python version: {sys.version}")
+print("Test completed successfully")
+EOF
+
+if wine python.exe -m PyInstaller --onefile --name test_minimal test_minimal.py --distpath dist_test --workpath build_test 2>&1 | tee "logs/pyinstaller_test.log"; then
+    if [[ -f "dist_test/test_minimal.exe" ]]; then
+        log_info "✅ PyInstaller test successful - basic functionality works"
+        rm -rf dist_test/ build_test/ test_minimal.py test_minimal.spec 2>/dev/null || true
+    else
+        log_error "❌ PyInstaller test failed - basic functionality broken"
+        log_error "Test output: $(cat logs/pyinstaller_test.log | tail -20)"
+        exit 1
+    fi
+else
+    log_error "❌ PyInstaller test failed to run"
+    exit 1
+fi
+
+# Test main application imports before building
+log_info "Testing main application imports in Windows Python..."
+wine python.exe << 'EOF'
+import sys
+sys.path.insert(0, 'src')
+
+print("Testing critical imports...")
+try:
+    import main
+    print("✅ main.py imports successfully")
+except Exception as e:
+    print(f"❌ main.py import failed: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+
+try:
+    from scada_ids.settings import get_settings
+    print("✅ scada_ids.settings imports successfully")
+except Exception as e:
+    print(f"❌ scada_ids.settings import failed: {e}")
+    import traceback
+    traceback.print_exc()
+
+try:
+    import PyQt6.QtCore
+    print("✅ PyQt6 imports successfully")
+except Exception as e:
+    print(f"❌ PyQt6 import failed: {e}")
+
+try:
+    import sklearn
+    print("✅ sklearn imports successfully")
+except Exception as e:
+    print(f"❌ sklearn import failed: {e}")
+
+print("Import testing completed")
+EOF
+
+if [[ $? -ne 0 ]]; then
+    log_error "❌ Main application imports failed - cannot proceed with build"
+    exit 1
+fi
+
 # Try multiple build approaches in order of preference
 build_success=false
 
-# Approach 1: Use the main spec file
-if [[ -f "packaging/scada_windows.spec" ]] && [[ "$build_success" == "false" ]]; then
-    log_info "Attempt 1: Using main PyInstaller spec file..."
+# Approach 1: Use basic command-line build first (most reliable)
+if [[ "$build_success" == "false" ]]; then
+    log_info "Attempt 1: Using basic command-line PyInstaller approach..."
     if wine python.exe -m PyInstaller \
+        --onefile \
+        --name SCADA-IDS-KC \
+        --hidden-import=scada_ids \
+        --hidden-import=ui \
+        --hidden-import=pydoc \
+        --add-data "config:config" \
         --noconfirm \
         --clean \
         --log-level DEBUG \
         --distpath dist \
         --workpath build \
-        packaging/scada_windows.spec 2>&1 | tee "logs/pyinstaller_main.log"; then
+        main.py 2>&1 | tee "logs/pyinstaller_basic.log"; then
 
         # Verify the build actually produced an executable
-        if [[ -f "dist/SCADA-IDS-KC.exe" ]] || [[ -f "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe" ]]; then
-            log_info "OK Main spec file build succeeded and produced executable"
+        if [[ -f "dist/SCADA-IDS-KC.exe" ]]; then
+            log_info "✅ Basic command-line build succeeded and produced executable"
             build_success=true
         else
-            log_warn "FAIL Main spec file completed but no executable found, trying fallback..."
+            log_warn "❌ Basic build completed but no executable found"
             log_warn "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
+            log_warn "Last 20 lines of build log:"
+            tail -20 "logs/pyinstaller_basic.log" || echo "No log available"
         fi
     else
-        log_warn "FAIL Main spec file build failed, trying fallback..."
+        log_warn "❌ Basic command-line build failed, trying spec files..."
     fi
 fi
 
