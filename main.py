@@ -241,8 +241,7 @@ def test_ml_models():
             'ack_flag': 0.0,
             'fin_flag': 0.0,
             'rst_flag': 0.0,
-            'syn_packet_ratio': 0.1,
-            'src_syn_ratio': 0.1
+            'syn_packet_ratio': 0.1
         }
         
         probability, is_threat = detector.predict(dummy_features)

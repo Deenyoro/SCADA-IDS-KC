@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # SCADA-IDS-KC Windows Build Script for WSL/Linux
-# TRUE Windows Cross‑compilation using Wine + Windows Python
+# TRUE Windows Cross-compilation using Wine + Windows Python
 # -----------------------------------------------------------
-# Last updated: 2025‑07‑19
-# * Auto‑updates Winetricks if vcrun2022 verb is missing
-# * Heals SHA‑256 mismatches by purging cache & retrying
+# Last updated: 2025-07-19
+# * Auto-updates Winetricks if vcrun2022 verb is missing
+# * Heals SHA-256 mismatches by purging cache & retrying
 # * Uses correct WineHQ .sources path under /dists/<codename>/
-# * Installs VC++ 2015‑2022 redist (UCRT) reliably
-# * Tested with Wine‑10.0 & Winetricks‑20240105‑next
+# * Installs VC++ 2015-2022 redist (UCRT) reliably
+# * Tested with Wine-10.0 & Winetricks-20240105-next
 
 set -euo pipefail
 
@@ -29,7 +29,7 @@ cd "$SCRIPT_DIR"
 
 WINEPREFIX="$HOME/.wine_scada_build"
 PYTHON_INSTALLER="python-3.11.9-amd64.exe"
-WINETRICKS_MIN_DATE=20230212   # vcrun2022 landed early‑2023
+WINETRICKS_MIN_DATE=20230212   # vcrun2022 landed early-2023
 export DEBIAN_FRONTEND=noninteractive
 
 # ---------- Argument parsing ---------------
@@ -38,7 +38,7 @@ VERBOSE=false; FORCE_SETUP=false
 
 show_help() {
     cat << EOF
-🚀 SCADA-IDS-KC Windows Build Script for WSL/Linux
+SCADA-IDS-KC Windows Build Script for WSL/Linux
    CREATES ACTUAL WINDOWS PE EXECUTABLES!
 
 Usage: $0 [OPTIONS]
@@ -87,11 +87,11 @@ done
 # Banner
 echo -e "${GREEN}"
 cat << 'EOF'
- ╔═══════════════════════════════════════════════════════════╗
- ║               SCADA-IDS-KC Windows Builder                ║
- ║          FIXED BUILD SYSTEM - REAL WINDOWS PE!           ║
- ║                    DO IT RIGHT, DO IT NOW!               ║
- ╚═══════════════════════════════════════════════════════════╝
+ ==============================================================
+                SCADA-IDS-KC Windows Builder                
+           FIXED BUILD SYSTEM - REAL WINDOWS PE!           
+                     DO IT RIGHT, DO IT NOW!               
+ ==============================================================
 EOF
 echo -e "${NC}"
 
@@ -233,7 +233,7 @@ install_wine() {
 if ! command -v wine &>/dev/null; then install_wine; fi
 wine_ver=$(wine --version | sed 's/wine-//')
 if [[ ${wine_ver%%.*} -lt 7 ]]; then install_wine; fi
-log "[INFO] Using Wine $wine_ver (UCRT capable) ✓" "$GREEN"
+log "[INFO] Using Wine $wine_ver (UCRT capable) OK" "$GREEN"
 
 # ---------- Winetricks installation --------
 update_winetricks() {
@@ -268,9 +268,9 @@ ensure_winetricks_deps() {
     log "[INFO] Installing missing dependencies for CI/local compatibility..." "$BLUE"
     sudo apt-get update -qq
     sudo apt-get install -y --no-install-recommends "${missing_deps[@]}"
-    log "[INFO] ✅ Winetricks dependencies installed successfully" "$GREEN"
+    log "[INFO] Winetricks dependencies installed successfully" "$GREEN"
   else
-    log "[INFO] ✅ All Winetricks dependencies present" "$GREEN"
+    log "[INFO] All Winetricks dependencies present" "$GREEN"
   fi
 }
 
@@ -280,25 +280,25 @@ ensure_winetricks_deps
 # ---------- Headless Environment Support ---
 ensure_display_for_wine() {
   if [[ -z "${DISPLAY:-}" ]]; then
-    log "[INFO] No DISPLAY found – starting Xvfb for headless Wine GUI support…" "$BLUE"
+    log "[INFO] No DISPLAY found - starting Xvfb for headless Wine GUI support..." "$BLUE"
 
     # Install xvfb if not present
     if ! command -v Xvfb >/dev/null 2>&1; then
-      log "[INFO] Installing xvfb for virtual display…"
+      log "[INFO] Installing xvfb for virtual display..."
       sudo apt-get update -qq
       sudo apt-get install -y --no-install-recommends xvfb
     fi
 
     # Start virtual X server
-    log "[INFO] Starting virtual X server on :99…"
+    log "[INFO] Starting virtual X server on :99..."
     Xvfb :99 -screen 0 1024x768x24 &
     export DISPLAY=:99
 
     # Give it a moment to start
     sleep 2
-    log "[INFO] ✅ Virtual X server started on DISPLAY=:99" "$GREEN"
+    log "[INFO] Virtual X server started on DISPLAY=:99" "$GREEN"
   else
-    log "[INFO] ✅ DISPLAY already set: $DISPLAY" "$GREEN"
+    log "[INFO] DISPLAY already set: $DISPLAY" "$GREEN"
   fi
 }
 
@@ -307,7 +307,7 @@ ensure_display_for_wine
 
 # ---------- MSVC runtime / UCRT ------------
 install_msvc_runtime() {
-  log "[INFO] Installing MSVC runtime with SHA256 bypass for CI compatibility…" "$BLUE"
+  log "[INFO] Installing MSVC runtime with SHA256 bypass for CI compatibility..." "$BLUE"
 
   # Always set WINETRICKS_SHA256=skip to handle hash mismatches in CI
   export WINETRICKS_SHA256=skip
@@ -315,41 +315,41 @@ install_msvc_runtime() {
   local tries=0
   while (( tries < 3 )); do
     # Clear cache before each attempt to avoid stale files
-    log "[INFO] Clearing winetricks cache (attempt $((tries + 1))/3)…"
+    log "[INFO] Clearing winetricks cache (attempt $((tries + 1))/3)..."
     rm -rf ~/.cache/winetricks/vcrun* 2>/dev/null || true
 
     # Try vcrun2022 first (covers VC++ 2015-2022 + UCRT)
     if WINETRICKS_SHA256=skip winetricks -q --force vcrun2022 2>/dev/null; then
-      log "[INFO] ✅ vcrun2022 installed successfully" "$GREEN"
+      log "[INFO] vcrun2022 installed successfully" "$GREEN"
       return 0
     fi
 
     # Check if vcrun2022 verb is missing and update winetricks
     if grep -q "unknown arg" ~/.cache/winetricks*/log 2>/dev/null; then
-      log "[WARN] vcrun2022 verb missing; updating Winetricks…" "$YELLOW"
+      log "[WARN] vcrun2022 verb missing; updating Winetricks..." "$YELLOW"
       winetricks --self-update 2>/dev/null || update_winetricks
     fi
 
     ((tries++))
-    log "[WARN] vcrun2022 attempt $tries failed, retrying…" "$YELLOW"
+    log "[WARN] vcrun2022 attempt $tries failed, retrying..." "$YELLOW"
   done
 
   # Fallback to vcrun2019
-  log "[WARN] vcrun2022 failed, trying vcrun2019 fallback…" "$YELLOW"
+  log "[WARN] vcrun2022 failed, trying vcrun2019 fallback..." "$YELLOW"
   rm -rf ~/.cache/winetricks/vcrun* 2>/dev/null || true
   if WINETRICKS_SHA256=skip winetricks -q --force vcrun2019 2>/dev/null; then
-    log "[INFO] ✅ vcrun2019 installed successfully (fallback)" "$GREEN"
+    log "[INFO] vcrun2019 installed successfully (fallback)" "$GREEN"
     return 0
   fi
 
   # Final fallback - try without force flag
-  log "[WARN] Trying vcrun2019 without force flag…" "$YELLOW"
+  log "[WARN] Trying vcrun2019 without force flag..." "$YELLOW"
   if WINETRICKS_SHA256=skip winetricks -q vcrun2019 2>/dev/null; then
-    log "[INFO] ✅ vcrun2019 installed successfully (final fallback)" "$GREEN"
+    log "[INFO] vcrun2019 installed successfully (final fallback)" "$GREEN"
     return 0
   fi
 
-  log "[ERROR] Could not install any VC++ runtime – build stopped" "$RED"
+  log "[ERROR] Could not install any VC++ runtime - build stopped" "$RED"
   log "[ERROR] This will cause NumPy/scikit-learn import failures!" "$RED"
   exit 1
 }
@@ -363,7 +363,7 @@ fi
 
 # Check WSL environment
 if [[ -f /proc/version ]] && grep -qi microsoft /proc/version; then
-    log "[INFO] Running in WSL environment ✓" "$GREEN"
+    log "[INFO] Running in WSL environment OK" "$GREEN"
     WSL_ENV=true
 else
     log "[INFO] Running in native Linux environment" "$GREEN"
@@ -373,26 +373,26 @@ fi
 # ---------- Windows Python -----------------
 if $FORCE_SETUP || ! wine python.exe -V &>/dev/null; then
   [[ -e $PYTHON_INSTALLER ]] || { log "Missing $PYTHON_INSTALLER" "$RED"; exit 1; }
-  log "[INFO] Installing Windows Python 3.11…" "$BLUE"
+  log "[INFO] Installing Windows Python 3.11..." "$BLUE"
   wine "$PYTHON_INSTALLER" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
   sleep 10
 fi
 log "[INFO] Windows Python: $(wine python.exe -V)" "$GREEN"
 
 # ---------- Setup Build Environment --------
-log "[INFO] Setting up build environment…" "$BLUE"
+log "[INFO] Setting up build environment..." "$BLUE"
 
 # Create necessary directories for GitHub Actions and local builds
 mkdir -p dist/ build/ logs/ 2>/dev/null || true
 
 # Clean Build (if requested)
 if $CLEAN; then
-  log "[INFO] Cleaning previous build artifacts…" "$BLUE"
+  log "[INFO] Cleaning previous build artifacts..." "$BLUE"
   rm -rf dist/* build/* logs/* *.spec.bak .venv/ __pycache__/ 2>/dev/null || true
   find . -name "*.pyc" -delete 2>/dev/null || true
   find . -name "*.pyo" -delete 2>/dev/null || true
   find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-  log "[INFO] Clean completed successfully ✓" "$GREEN"
+  log "[INFO] Clean completed successfully OK" "$GREEN"
 fi
 
 # Create build log file for GitHub Actions
@@ -401,54 +401,54 @@ echo "SCADA-IDS-KC Windows Build Log - $(date)" > "$BUILD_LOG"
 echo "=========================================" >> "$BUILD_LOG"
 
 # ---------- Windows Python Dependencies ----
-log "[INFO] Installing Windows Python dependencies…" "$BLUE"
+log "[INFO] Installing Windows Python dependencies..." "$BLUE"
 
-log "[INFO] Upgrading Windows pip and installing build tools…"
+log "[INFO] Upgrading Windows pip and installing build tools..."
 run "Upgrading Windows pip" wine python.exe -m pip install --upgrade pip
 run "Installing Windows build tools" wine python.exe -m pip install --upgrade setuptools wheel
 
 if $OFFLINE; then
     if [[ -d "requirements.offline" ]]; then
-        log "[INFO] Installing from offline wheels in Windows Python…"
+        log "[INFO] Installing from offline wheels in Windows Python..."
         run "Installing offline dependencies" wine python.exe -m pip install --no-index --find-links requirements.offline -r requirements.txt
     else
         log "[ERROR] Offline mode requested but requirements.offline directory not found" "$RED"
         exit 1
     fi
 else
-    log "[INFO] Installing dependencies in Windows Python…"
+    log "[INFO] Installing dependencies in Windows Python..."
 
     # Install core dependencies first
-    log "[INFO] Installing core packages…"
+    log "[INFO] Installing core packages..."
     run "Installing numpy" wine python.exe -m pip install "numpy==1.26.4"
     run "Installing pandas" wine python.exe -m pip install "pandas==2.2.2"
     run "Installing PyYAML" wine python.exe -m pip install "PyYAML==6.0.1"
 
     # Install ML packages
-    log "[INFO] Installing ML packages…"
+    log "[INFO] Installing ML packages..."
     run "Installing scikit-learn" wine python.exe -m pip install "scikit-learn==1.5.0"
     run "Installing joblib" wine python.exe -m pip install "joblib==1.5.0"
 
     # Install GUI packages
-    log "[INFO] Installing GUI packages…"
+    log "[INFO] Installing GUI packages..."
     run "Installing PyQt6" wine python.exe -m pip install "PyQt6==6.7.0"
 
     # Install network packages
-    log "[INFO] Installing network packages…"
+    log "[INFO] Installing network packages..."
     run "Installing scapy" wine python.exe -m pip install "scapy==2.5.0"
 
     # Install notification packages
-    log "[INFO] Installing notification packages…"
+    log "[INFO] Installing notification packages..."
     run "Installing plyer" wine python.exe -m pip install "plyer==2.1.0"
 
     # Install MANDATORY Windows-specific packages (required for Windows functionality!)
-    log "[INFO] Installing MANDATORY Windows-specific packages…" "$YELLOW"
+    log "[INFO] Installing MANDATORY Windows-specific packages..." "$YELLOW"
     run "Installing win10toast-click" wine python.exe -m pip install "win10toast-click==0.1.2"
     run "Installing win10toast alias" wine python.exe -m pip install "win10toast==0.9"
     run "Installing pywin32" wine python.exe -m pip install "pywin32"
 
     # Install build and utility packages
-    log "[INFO] Installing build packages…"
+    log "[INFO] Installing build packages..."
     run "Installing pydantic" wine python.exe -m pip install "pydantic==2.7.1"
     run "Installing PyInstaller (latest)" wine python.exe -m pip install --upgrade --force-reinstall pyinstaller pyinstaller-hooks-contrib
     run "Installing psutil" wine python.exe -m pip install "psutil==5.9.8"
@@ -456,22 +456,22 @@ else
     run "Installing Pillow" wine python.exe -m pip install "Pillow"
 
     # Install test packages
-    log "[INFO] Installing test packages…"
+    log "[INFO] Installing test packages..."
     run "Installing pytest" wine python.exe -m pip install "pytest==8.2.2"
     run "Installing pytest-qt" wine python.exe -m pip install "pytest-qt==4.4.0"
 
     # Final requirements install to catch any missed dependencies
-    log "[INFO] Installing from requirements.txt (final pass)…"
+    log "[INFO] Installing from requirements.txt (final pass)..."
     run "Installing requirements.txt" wine python.exe -m pip install -r requirements.txt
 fi
 
 # ---------- Verify Installation ---------
-log "[INFO] Verifying Windows Python installation…" "$BLUE"
+log "[INFO] Verifying Windows Python installation..." "$BLUE"
 
-log "[INFO] Checking installed packages in Windows Python…"
+log "[INFO] Checking installed packages in Windows Python..."
 wine python.exe -m pip list | grep -E "(scapy|PyQt6|scikit-learn|joblib|pydantic|numpy|pandas|pyinstaller)" || true
 
-log "[INFO] Testing critical imports in Windows Python…"
+log "[INFO] Testing critical imports in Windows Python..."
 wine python.exe << 'EOF'
 import sys
 import traceback
@@ -481,13 +481,13 @@ def test_import(module_name, package_name=None):
         package_name = module_name
     try:
         __import__(module_name)
-        print(f"✅ {package_name}")
+        print(f"OK {package_name}")
         return True
     except ImportError as e:
-        print(f"❌ {package_name}: {e}")
+        print(f"FAIL {package_name}: {e}")
         return False
 
-print("🔍 Testing critical imports in Windows Python...")
+print("Testing critical imports in Windows Python...")
 modules = [
     ('numpy', 'numpy'),
     ('pandas', 'pandas'),
@@ -509,10 +509,10 @@ for module, package in modules:
         failed.append(package)
 
 if failed:
-    print(f"\n❌ Failed imports: {', '.join(failed)}")
+    print(f"\nFAIL Failed imports: {', '.join(failed)}")
     sys.exit(1)
 else:
-    print("\n✅ All critical dependencies available in Windows Python!")
+    print("\nOK All critical dependencies available in Windows Python!")
     sys.exit(0)
 EOF
 
@@ -530,9 +530,9 @@ try:
     from scada_ids.features import FeatureExtractor
     from scada_ids.ml import get_detector
     from scada_ids.controller import get_controller
-    print("✅ All core modules imported successfully in Windows Python")
+    print("OK All core modules imported successfully in Windows Python")
 except Exception as e:
-    print(f"❌ Import failed in Windows Python: {e}")
+    print(f"FAIL Import failed in Windows Python: {e}")
     sys.exit(1)
 EOF
 
@@ -556,7 +556,7 @@ model_path="models/results_enhanced_data-spoofing/trained_models/RandomForest.jo
 scaler_path="models/results_enhanced_data-spoofing/trained_models/standard_scaler.joblib"
 
 if [[ -f "$model_path" && -f "$scaler_path" ]]; then
-    log_info "ML models found and ready ✓"
+    log_info "ML models found and ready OK"
 else
     log_warn "ML models not found - application will use dummy models"
 fi
@@ -567,7 +567,7 @@ if [[ ! -f "packaging/scada_windows.spec" ]]; then
     exit 1
 fi
 
-log_info "Build environment ready ✓"
+log_info "Build environment ready OK"
 
 # STEP 9: Build TRUE Windows executable with Wine + Windows Python
 log_step "STEP 9: Building TRUE Windows PE executable with Wine + Windows Python"
@@ -600,14 +600,14 @@ if [[ -f "packaging/scada_windows.spec" ]] && [[ "$build_success" == "false" ]];
 
         # Verify the build actually produced an executable
         if [[ -f "dist/SCADA-IDS-KC.exe" ]] || [[ -f "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe" ]]; then
-            log_info "✅ Main spec file build succeeded and produced executable"
+            log_info "OK Main spec file build succeeded and produced executable"
             build_success=true
         else
-            log_warn "❌ Main spec file completed but no executable found, trying fallback..."
+            log_warn "FAIL Main spec file completed but no executable found, trying fallback..."
             log_warn "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
         fi
     else
-        log_warn "❌ Main spec file build failed, trying fallback..."
+        log_warn "FAIL Main spec file build failed, trying fallback..."
     fi
 fi
 
@@ -624,14 +624,14 @@ if [[ -f "packaging/scada_simple.spec" ]] && [[ "$build_success" == "false" ]]; 
 
         # Verify the build actually produced an executable
         if [[ -f "dist/SCADA-IDS-KC.exe" ]] || [[ -f "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe" ]]; then
-            log_info "✅ Simple spec file build succeeded and produced executable"
+            log_info "OK Simple spec file build succeeded and produced executable"
             build_success=true
         else
-            log_warn "❌ Simple spec file completed but no executable found, trying command-line..."
+            log_warn "FAIL Simple spec file completed but no executable found, trying command-line..."
             log_warn "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
         fi
     else
-        log_warn "❌ Simple spec file build failed, trying command-line..."
+        log_warn "FAIL Simple spec file build failed, trying command-line..."
     fi
 fi
 
@@ -658,26 +658,26 @@ if [[ "$build_success" == "false" ]]; then
 
         # Verify the build actually produced an executable
         if [[ -f "dist/SCADA-IDS-KC.exe" ]]; then
-            log_info "✅ Command-line build succeeded and produced executable"
+            log_info "OK Command-line build succeeded and produced executable"
             build_success=true
         else
-            log_error "❌ Command-line build completed but no executable found"
+            log_error "FAIL Command-line build completed but no executable found"
             log_error "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
             build_success=false
         fi
     else
-        log_error "❌ Command-line build failed"
+        log_error "FAIL Command-line build failed"
         build_success=false
     fi
 fi
 
 if [[ "$build_success" == "true" ]]; then
-    log_info "✅ PyInstaller build completed successfully"
+    log_info "OK PyInstaller build completed successfully"
     log_info "Final verification of build output..."
     log_info "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
     log_info "Contents of build/: $(ls -la build/ 2>/dev/null || echo 'empty')"
 else
-    log_error "❌ All PyInstaller build approaches failed"
+    log_error "FAIL All PyInstaller build approaches failed"
     log_error "Debug information:"
     log_error "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
     log_error "Contents of build/: $(ls -la build/ 2>/dev/null || echo 'empty')"
@@ -717,7 +717,7 @@ if [[ -f "$exe_path" ]]; then
     file_size=$(ls -lh "$exe_path" | awk '{print $5}')
     file_date=$(ls -l "$exe_path" | awk '{print $6, $7, $8}')
 
-    log_info "Build completed successfully! ✅"
+    log_info "Build completed successfully! OK"
     log_info "Executable: $exe_path"
     log_info "Size: $file_size"
     log_info "Created: $file_date"
@@ -728,14 +728,14 @@ if [[ -f "$exe_path" ]]; then
         log_info "File type: $file_type"
 
         if [[ "$file_type" == *"PE32"* ]] || [[ "$file_type" == *"MS Windows"* ]]; then
-            log_info "🎉 SUCCESS: Created TRUE Windows PE executable!"
+            log_info "SUCCESS: Created TRUE Windows PE executable!"
             log_info "This executable WILL run on Windows systems!"
         elif [[ "$file_type" == *"ELF"* ]]; then
-            log_error "❌ FAILED: Still created Linux executable instead of Windows!"
+            log_error "FAIL: Still created Linux executable instead of Windows!"
             log_error "Something went wrong with the Wine build process."
             exit 1
         else
-            log_warn "⚠️  Unknown file type: $file_type"
+            log_warn "WARN Unknown file type: $file_type"
         fi
     fi
 
@@ -743,13 +743,13 @@ if [[ -f "$exe_path" ]]; then
     log_info "Testing Windows executable with Wine..."
     if timeout 30 wine "$exe_path" --version >/dev/null 2>&1; then
         wine_output=$(timeout 10 wine "$exe_path" --version 2>&1 | tr -d '\r' | grep -v "wine:" || echo "No output")
-        log_info "✅ Wine test successful: $wine_output"
+        log_info "OK Wine test successful: $wine_output"
     else
-        log_warn "⚠️  Wine test failed or timed out"
+        log_warn "WARN Wine test failed or timed out"
     fi
 
 else
-    log_error "❌ Build failed - executable not found at $exe_path"
+    log_error "FAIL Build failed - executable not found at $exe_path"
 
     # Debug information
     log_error "Build directory contents:"
@@ -850,15 +850,15 @@ log_step "STEP 13: TRUE Windows PE build complete!"
 
 echo -e "${GREEN}"
 cat << 'EOF'
- ╔═══════════════════════════════════════════════════════════╗
- ║                    BUILD SUCCESSFUL!                     ║
- ║            TRUE WINDOWS PE EXECUTABLE CREATED!           ║
- ║              FIXED BUILD SYSTEM WORKS!                   ║
- ╚═══════════════════════════════════════════════════════════╝
+ ==============================================================
+                     BUILD SUCCESSFUL!                     
+             TRUE WINDOWS PE EXECUTABLE CREATED!           
+               FIXED BUILD SYSTEM WORKS!                   
+ ==============================================================
 EOF
 echo -e "${NC}"
 
-echo -e "${YELLOW}🚀 Quick Start Commands:${NC}"
+echo -e "${YELLOW}Quick Start Commands:${NC}"
 echo -e "${CYAN}   wine dist/SCADA-IDS-KC.exe --help${NC}          # Test with Wine"
 echo -e "${CYAN}   wine dist/SCADA-IDS-KC.exe --cli --status${NC}  # Check status with Wine"
 echo -e "${CYAN}   # Copy to Windows and run natively:${NC}"
@@ -866,21 +866,21 @@ echo -e "${CYAN}   SCADA-IDS-KC.exe${NC}                           # Run GUI mod
 echo -e "${CYAN}   SCADA-IDS-KC.exe --cli --status${NC}            # Check status on Windows"
 
 echo ""
-echo -e "${GREEN}🎉 TRUE Windows PE executable created:${NC} ${CYAN}$exe_path${NC}"
-echo -e "${GREEN}✅ Build report generated:${NC} ${CYAN}$build_report_file${NC}"
+echo -e "${GREEN}TRUE Windows PE executable created:${NC} ${CYAN}$exe_path${NC}"
+echo -e "${GREEN}Build report generated:${NC} ${CYAN}$build_report_file${NC}"
 
 if [[ "$MAKE_ZIP" == "true" && -n "${package_name:-}" && -f "dist/$package_name" ]]; then
-    echo -e "${GREEN}✅ Installation package created:${NC} ${CYAN}dist/$package_name${NC}"
+    echo -e "${GREEN}Installation package created:${NC} ${CYAN}dist/$package_name${NC}"
 fi
 
 echo ""
-echo -e "${YELLOW}📝 Next Steps:${NC}"
+echo -e "${YELLOW}Next Steps:${NC}"
 echo -e "1. Copy the .exe file to a Windows machine"
 echo -e "2. Install Npcap on Windows (for packet capture)"
 echo -e "3. Run the application natively on Windows!"
 echo -e "4. No more fake Linux executables renamed to .exe!"
 
 echo ""
-echo -e "${GREEN}🎉 FIXED BUILD SYSTEM - REAL WINDOWS EXECUTABLES!${NC}"
+echo -e "${GREEN}FIXED BUILD SYSTEM - REAL WINDOWS EXECUTABLES!${NC}"
 
 exit 0
