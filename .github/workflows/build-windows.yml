@@ -29,25 +29,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Wine GUI and Winetricks dependencies
-      run: |
-        echo "📦 Installing Wine GUI helpers and Winetricks dependencies for CI..."
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends \
-          xvfb \
-          cabextract \
-          p7zip-full \
-          unzip \
-          winbind
-        echo "✅ Wine GUI and Winetricks dependencies installed"
-
-    - name: Start virtual X server for Wine GUI support
-      run: |
-        echo "🖥️ Starting virtual X server for headless Wine GUI support..."
-        Xvfb :99 -screen 0 1024x768x24 &
-        echo "DISPLAY=:99" >> $GITHUB_ENV
-        echo "✅ Virtual X server started on DISPLAY=:99"
-
     - name: Cache Wine and Python installer
       uses: actions/cache@v4
       with:
@@ -69,11 +50,23 @@ jobs:
           echo "✅ Python installer already exists"
         fi
 
-    - name: Build Windows executable with Wine + Windows Python
+    - name: Build Windows executable with Wine + Windows Python (under Xvfb)
       run: |
         echo "🚀 Building TRUE Windows PE executable using Wine + Windows Python..."
+        echo "📦 Installing Wine GUI helpers and Winetricks dependencies..."
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          xvfb \
+          cabextract \
+          p7zip-full \
+          unzip \
+          winbind
+        echo "✅ Dependencies installed"
+
+        echo "🖥️ Running build under virtual X server for Wine GUI support..."
         chmod +x build_windows.sh
-        ./build_windows.sh --clean --create-installer
+        xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
+          ./build_windows.sh --clean --create-installer
         
     - name: Verify Windows PE executable
       run: |

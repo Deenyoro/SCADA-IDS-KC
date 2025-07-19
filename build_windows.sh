@@ -367,7 +367,7 @@ else
     # Install build and utility packages
     log "[INFO] Installing build packages…"
     run "Installing pydantic" wine python.exe -m pip install "pydantic==2.7.1"
-    run "Installing PyInstaller" wine python.exe -m pip install "pyinstaller==6.6.0"
+    run "Installing PyInstaller (latest)" wine python.exe -m pip install --upgrade --force-reinstall pyinstaller pyinstaller-hooks-contrib
     run "Installing psutil" wine python.exe -m pip install "psutil==5.9.8"
     run "Installing colorlog" wine python.exe -m pip install "colorlog==6.8.2"
     run "Installing Pillow" wine python.exe -m pip install "Pillow"
@@ -498,13 +498,22 @@ mkdir -p dist
 log_info "Building Windows executable using Windows Python in Wine..."
 log_info "This will create a REAL Windows PE executable!"
 
-# Build with Windows PyInstaller
-run_cmd "Building Windows PE executable" wine python.exe -m PyInstaller packaging/scada_windows.spec \
+# Build with Windows PyInstaller using --collect-all approach (fixes ML library bundling)
+log_info "Using --collect-all approach to ensure ML libraries are properly bundled..."
+run_cmd "Building Windows PE executable" wine python.exe -m PyInstaller \
+    --onefile \
+    --name SCADA-IDS-KC \
+    --collect-all sklearn \
+    --collect-all scipy \
+    --collect-all numpy \
+    --collect-all joblib \
+    --hidden-import=pydoc \
     --noconfirm \
     --clean \
     --log-level INFO \
     --distpath dist \
-    --workpath build
+    --workpath build \
+    main.py
 
 # STEP 10: Verify TRUE Windows build
 log_step "STEP 10: Verifying TRUE Windows PE executable"

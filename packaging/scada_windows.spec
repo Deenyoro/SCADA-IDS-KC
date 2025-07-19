@@ -9,13 +9,31 @@ import os
 import sys
 import platform
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+from PyInstaller.utils.hooks import collect_all
 
-# Collect ML libraries to fix missing sklearn/joblib modules
-hidden_ml = (collect_submodules("sklearn") + collect_submodules("joblib") + 
-             collect_submodules("scipy") + collect_submodules("numpy"))
-datas_ml = (collect_data_files("sklearn") + collect_data_files("joblib") + 
-            collect_data_files("scipy") + collect_data_files("numpy"))
+# Collect ML libraries using collect_all instead of collect_submodules
+# This approach is immune to Wine path issues and more reliable
+print("Collecting ML libraries using collect_all...")
+try:
+    sklearn_all = collect_all("sklearn")
+    scipy_all = collect_all("scipy") 
+    numpy_all = collect_all("numpy")
+    joblib_all = collect_all("joblib")
+    
+    # Combine all collections
+    hidden_ml = (sklearn_all[0] + scipy_all[0] + numpy_all[0] + joblib_all[0])
+    datas_ml = (sklearn_all[1] + scipy_all[1] + numpy_all[1] + joblib_all[1])
+    binaries_ml = (sklearn_all[2] + scipy_all[2] + numpy_all[2] + joblib_all[2])
+    
+    print(f"Successfully collected:")
+    print(f"  Hidden imports: {len(hidden_ml)}")
+    print(f"  Data files: {len(datas_ml)}")
+    print(f"  Binaries: {len(binaries_ml)}")
+except Exception as e:
+    print(f"Warning: Could not collect all ML libraries: {e}")
+    hidden_ml = []
+    datas_ml = []
+    binaries_ml = []
 
 # Get the project root directory
 project_root = Path(SPECPATH).parent
@@ -105,13 +123,13 @@ for resource_path, dest_dir in ui_resources:
                     rel_path = file_path.relative_to(resource_path.parent)
                     datas.append((str(file_path), str(Path(dest_dir).parent / rel_path.parent)))
 
-# Platform-specific binaries (empty for cross-compilation)
-binaries = []
+# Platform-specific binaries - include ML binaries from collect_all
+binaries = binaries_ml if 'binaries_ml' in locals() else []
 
 print(f"Total data files: {len(datas)}")
 
 # Enhanced hidden imports for reliable Windows cross-compilation
-hiddenimports = [
+hidden_imports_list = [
     # Core application modules
     'scada_ids',
     'scada_ids.settings',
@@ -248,12 +266,12 @@ windows_specific = [
 for module in windows_specific:
     try:
         __import__(module)
-        hiddenimports.append(module)
+        hidden_imports_list.append(module)
         print(f"  Added Windows-specific module: {module}")
     except ImportError:
         print(f"  Skipping unavailable Windows module: {module}")
 
-print(f"Total hidden imports: {len(hiddenimports)}")
+print(f"Total hidden imports: {len(hidden_imports_list)}")
 
 # Extensive excludes for smaller executable
 excludes = [
@@ -279,7 +297,6 @@ excludes = [
     # System tools
     'curses',
     'readline',
-    'sqlite3',
     
     # Network extras
     'ftplib',
@@ -304,7 +321,7 @@ a = Analysis(
     pathex=[str(src_path)],
     binaries=binaries,
     datas=datas,
-    hiddenimports=['pydoc'] + hidden_ml + hiddenimports,
+    hiddenimports=['pydoc'] + hidden_ml + hidden_imports_list,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -327,10 +344,8 @@ print("  Skipping icon to avoid format issues - executable will use default icon
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    [],
+    [],  # Empty for onedir build
+    exclude_binaries=True,  # Enable onedir build
     name='SCADA-IDS-KC.exe',  # Force .exe extension for Windows
     debug=False,
     bootloader_ignore_signals=False,
@@ -371,18 +386,17 @@ print(f"  Executable name: SCADA-IDS-KC.exe")
 print(f"  Console mode: True")
 print(f"  Icon: {icon_file or 'None'}")
 print(f"  Data files: {len(datas)}")
-print(f"  Hidden imports: {len(hiddenimports)}")
+print(f"  Hidden imports: {len(['pydoc'] + hidden_ml + hidden_imports_list)}")
 print(f"  Excludes: {len(excludes)}")
 
-# Optional: Create a collection for easier distribution
-# Uncomment if you want a directory distribution instead of single file
-# coll = COLLECT(
-#     exe,
-#     a.binaries,
-#     a.zipfiles,
-#     a.datas,
-#     strip=False,
-#     upx=False,
-#     upx_exclude=[],
-#     name='SCADA-IDS-KC'
-# )
+# Create a directory distribution for onedir build
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='SCADA-IDS-KC'
+)

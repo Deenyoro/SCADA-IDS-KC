@@ -11,7 +11,7 @@ plyer==2.1.0
 # win10toast-click==0.1.3  # Windows-only, installed separately during cross-compilation
 
 # Build and packaging
-pyinstaller==6.6.0
+# pyinstaller==6.6.0  # Use latest version instead via build script for ML library bundling fixes
 
 # Testing
 pytest==8.2.2
