@@ -321,11 +321,6 @@ class FeatureExtractor:
             else:
                 features['syn_packet_ratio'] = 0.0
             
-            src_packet_rate = features['src_packet_rate']
-            if src_packet_rate > 0:
-                features['src_syn_ratio'] = features['src_syn_rate'] / src_packet_rate
-            else:
-                features['src_syn_ratio'] = 0.0
             
             return features
             
@@ -342,7 +337,7 @@ class FeatureExtractor:
             'unique_dst_ports': 0.0, 'unique_src_ips_to_dst': 0.0,
             'packet_size': 0.0, 'dst_port': 0.0, 'src_port': 0.0,
             'syn_flag': 0.0, 'ack_flag': 0.0, 'fin_flag': 0.0, 'rst_flag': 0.0,
-            'syn_packet_ratio': 0.0, 'src_syn_ratio': 0.0
+            'syn_packet_ratio': 0.0
         }
     
     def _update_counters(self, timestamp: float, src_ip: str, dst_ip: str, 
@@ -511,7 +506,7 @@ class FeatureExtractor:
             'unique_dst_ports', 'unique_src_ips_to_dst',
             'packet_size', 'dst_port', 'src_port',
             'syn_flag', 'ack_flag', 'fin_flag', 'rst_flag',
-            'syn_packet_ratio', 'src_syn_ratio'
+            'syn_packet_ratio'
         ]
     
     def reset_counters(self) -> None:

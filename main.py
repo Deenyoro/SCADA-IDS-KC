@@ -42,6 +42,13 @@ def setup_logging(log_level: str = "INFO", log_file: str = None):
         try:
             with open(log_config_path) as f:
                 config = json.load(f)
+            
+            # Fix handler paths for packaged executables
+            for handler_name, handler_config in config.get('handlers', {}).items():
+                if 'filename' in handler_config:
+                    # Use full path for log files
+                    handler_config['filename'] = str(log_dir / Path(handler_config['filename']).name)
+            
             logging.config.dictConfig(config)
             return
         except Exception as e:

@@ -71,19 +71,40 @@ class PacketSniffer:
 
         try:
             interfaces = scapy.get_if_list()
+            logger.debug(f"Raw interfaces from scapy: {interfaces}")
+            
             # Filter out loopback and other non-useful interfaces
             filtered_interfaces = []
             for iface in interfaces:
-                if not iface.startswith(('lo', 'Loopback', 'any')):
-                    # Additional validation for interface names
+                iface_lower = iface.lower()
+                
+                # Skip loopback interfaces
+                if any(skip in iface_lower for skip in ['loopback', 'lo0', 'lo', 'any']):
+                    continue
+                
+                # On Windows, interfaces often have long GUIDs or complex names
+                # Be more permissive for Windows interface names
+                if sys.platform == "win32":
+                    # Accept any non-loopback interface on Windows
+                    if len(iface) <= 200 and iface.strip():  # More lenient length check
+                        filtered_interfaces.append(iface)
+                else:
+                    # More strict filtering for Linux/Unix
                     if len(iface) <= 50 and iface.replace('-', '').replace('_', '').isalnum():
                         filtered_interfaces.append(iface)
 
-            logger.debug(f"Found {len(filtered_interfaces)} network interfaces")
+            logger.info(f"Found {len(filtered_interfaces)} usable network interfaces")
+            if len(filtered_interfaces) == 0:
+                logger.warning("No network interfaces found. This may indicate:")
+                logger.warning("- Npcap is not installed or not working properly on Windows")
+                logger.warning("- Insufficient privileges to access network interfaces")
+                logger.warning("- Network adapters are disabled")
+            
             return filtered_interfaces
 
         except Scapy_Exception as e:
             logger.error(f"Scapy error getting network interfaces: {e}")
+            logger.error("This usually means Npcap is not properly installed on Windows")
             return []
         except Exception as e:
             logger.error(f"Failed to get network interfaces: {e}")

@@ -511,6 +511,25 @@ class IDSController:
             'current_interface': self.packet_sniffer.current_interface,
             'statistics': self.get_statistics()
         }
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Alias for get_system_status for compatibility."""
+        return self.get_system_status()
+    
+    def test_notifications(self) -> bool:
+        """Test notification system."""
+        try:
+            logger.info("Testing notification system...")
+            success = self.notification_manager.test_notification()
+            if success:
+                logger.info("Notification test successful")
+                return True
+            else:
+                logger.warning("Notification test failed")
+                return False
+        except Exception as e:
+            logger.error(f"Error testing notifications: {e}")
+            return False
 
 
     def _validate_packet_info(self, packet_info: Dict[str, Any]) -> bool:

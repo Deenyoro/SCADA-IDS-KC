@@ -1,0 +1,26 @@
+=== SCADA-IDS-KC TRUE Windows PE Build Report ===
+Build Date: Sat Jul 19 11:13:00 EDT 2025
+Build Host: PCuck64
+Build User: deen
+Build Environment: Linux PCuck64 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+WSL Environment: true
+Wine Version: wine-10.0
+Wine Prefix: /home/deen/.wine_scada_build
+
+Build Configuration:
+- Clean Build: false
+- Skip Tests: false
+- Offline Mode: false
+- Create Installer: false
+- Verbose Mode: false
+- Force Wine Setup: false
+
+Python Environment:
+- Windows Python Version: Python 3.11.9
+- Windows PyInstaller Version: Version: 6.14.2
+
+Build Output:
+- Executable: dist/SCADA-IDS-KC.exe (105M)
+- File Type: dist/SCADA-IDS-KC.exe: PE32+ executable (console) x86-64, for MS Windows
+
+Build Status: SUCCESS - TRUE WINDOWS PE EXECUTABLE CREATED!

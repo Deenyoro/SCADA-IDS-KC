@@ -77,7 +77,7 @@ class MLDetector:
             'unique_dst_ports', 'unique_src_ips_to_dst',
             'packet_size', 'dst_port', 'src_port',
             'syn_flag', 'ack_flag', 'fin_flag', 'rst_flag',
-            'syn_packet_ratio', 'src_syn_ratio'
+            'syn_packet_ratio'
         ]
         
         # Feature validation ranges (min, max, default)
@@ -101,7 +101,6 @@ class MLDetector:
             'fin_flag': (0.0, 1.0, 0.0),
             'rst_flag': (0.0, 1.0, 0.0),
             'syn_packet_ratio': (0.0, 1.0, 0.0),
-            'src_syn_ratio': (0.0, 1.0, 0.0)
         }
         
         # Register cleanup

@@ -141,7 +141,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='SCADA-IDS-KC.exe',
+    name='SCADA-IDS-KC',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -597,8 +597,15 @@ if [[ -f "packaging/scada_windows.spec" ]] && [[ "$build_success" == "false" ]];
         --distpath dist \
         --workpath build \
         packaging/scada_windows.spec 2>&1 | tee "logs/pyinstaller_main.log"; then
-        log_info "✅ Main spec file build succeeded"
-        build_success=true
+
+        # Verify the build actually produced an executable
+        if [[ -f "dist/SCADA-IDS-KC.exe" ]] || [[ -f "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe" ]]; then
+            log_info "✅ Main spec file build succeeded and produced executable"
+            build_success=true
+        else
+            log_warn "❌ Main spec file completed but no executable found, trying fallback..."
+            log_warn "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
+        fi
     else
         log_warn "❌ Main spec file build failed, trying fallback..."
     fi
@@ -614,8 +621,15 @@ if [[ -f "packaging/scada_simple.spec" ]] && [[ "$build_success" == "false" ]]; 
         --distpath dist \
         --workpath build \
         packaging/scada_simple.spec 2>&1 | tee "logs/pyinstaller_simple.log"; then
-        log_info "✅ Simple spec file build succeeded"
-        build_success=true
+
+        # Verify the build actually produced an executable
+        if [[ -f "dist/SCADA-IDS-KC.exe" ]] || [[ -f "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe" ]]; then
+            log_info "✅ Simple spec file build succeeded and produced executable"
+            build_success=true
+        else
+            log_warn "❌ Simple spec file completed but no executable found, trying command-line..."
+            log_warn "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
+        fi
     else
         log_warn "❌ Simple spec file build failed, trying command-line..."
     fi
@@ -624,7 +638,7 @@ fi
 # Approach 3: Command-line approach as final fallback
 if [[ "$build_success" == "false" ]]; then
     log_info "Attempt 3: Using command-line PyInstaller approach..."
-    run "Building Windows PE executable with CLI fallback" wine python.exe -m PyInstaller \
+    if wine python.exe -m PyInstaller \
         --onefile \
         --name SCADA-IDS-KC \
         --collect-all sklearn \
@@ -640,14 +654,35 @@ if [[ "$build_success" == "false" ]]; then
         --log-level DEBUG \
         --distpath dist \
         --workpath build \
-        main.py
-    build_success=true
+        main.py 2>&1 | tee "logs/pyinstaller_cli.log"; then
+
+        # Verify the build actually produced an executable
+        if [[ -f "dist/SCADA-IDS-KC.exe" ]]; then
+            log_info "✅ Command-line build succeeded and produced executable"
+            build_success=true
+        else
+            log_error "❌ Command-line build completed but no executable found"
+            log_error "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
+            build_success=false
+        fi
+    else
+        log_error "❌ Command-line build failed"
+        build_success=false
+    fi
 fi
 
 if [[ "$build_success" == "true" ]]; then
     log_info "✅ PyInstaller build completed successfully"
+    log_info "Final verification of build output..."
+    log_info "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
+    log_info "Contents of build/: $(ls -la build/ 2>/dev/null || echo 'empty')"
 else
     log_error "❌ All PyInstaller build approaches failed"
+    log_error "Debug information:"
+    log_error "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
+    log_error "Contents of build/: $(ls -la build/ 2>/dev/null || echo 'empty')"
+    log_error "PyInstaller logs:"
+    find logs/ -name "pyinstaller_*.log" -exec echo "=== {} ===" \; -exec tail -20 {} \; 2>/dev/null || echo "No PyInstaller logs found"
     exit 1
 fi
 
