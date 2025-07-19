@@ -53,6 +53,7 @@ jobs:
     - name: Build Windows executable with Wine + Windows Python (under Xvfb)
       id: build
       continue-on-error: true
+      working-directory: ${{ github.workspace }}
       run: |
         echo "🚀 Building TRUE Windows PE executable using Wine + Windows Python..."
         echo "📦 Installing Wine GUI helpers and Winetricks dependencies..."

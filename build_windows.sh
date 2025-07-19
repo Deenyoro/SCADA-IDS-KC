@@ -349,8 +349,8 @@ install_msvc_runtime() {
     return 0
   fi
 
-  log "[ERROR] Could not install any VC++ runtime - build stopped" "$RED"
-  log "[ERROR] This will cause NumPy/scikit-learn import failures!" "$RED"
+  log "[ERROR] Could not install any VC++ runtime - PyInstaller bootloader will fail!" "$RED"
+  log "[ERROR] This causes silent failures with exit code 0 but no output files!" "$RED"
   exit 1
 }
 
@@ -360,6 +360,9 @@ if $FORCE_SETUP || [[ ! -d $WINEPREFIX ]]; then
   WINEARCH=win64 wineboot -u &>/dev/null
   install_msvc_runtime
 fi
+
+# Set Wine DLL overrides to surface missing DLL messages (critical for PyInstaller debugging)
+export WINEDLLOVERRIDES="ucrtbase,msvcp140=n"
 
 # Check WSL environment
 if [[ -f /proc/version ]] && grep -qi microsoft /proc/version; then
@@ -450,7 +453,7 @@ else
     # Install build and utility packages
     log "[INFO] Installing build packages..."
     run "Installing pydantic" wine python.exe -m pip install "pydantic==2.7.1"
-    run "Installing PyInstaller (latest)" wine python.exe -m pip install --upgrade --force-reinstall pyinstaller pyinstaller-hooks-contrib
+    run "Installing PyInstaller (Python 3.11 compatible)" wine python.exe -m pip install "pyinstaller>=6.14,<7" pyinstaller-hooks-contrib
     run "Installing psutil" wine python.exe -m pip install "psutil==5.9.8"
     run "Installing colorlog" wine python.exe -m pip install "colorlog==6.8.2"
     run "Installing Pillow" wine python.exe -m pip install "Pillow"
@@ -608,8 +611,10 @@ print(f"Python version: {sys.version}")
 print("Test completed successfully")
 EOF
 
-# Enable Wine debug output for missing DLLs
+# Enable Wine debug output for missing DLLs and bootloader issues
 export WINEDEBUG=err+all
+log_info "Wine debug enabled: WINEDEBUG=$WINEDEBUG"
+log_info "Wine DLL overrides: WINEDLLOVERRIDES=$WINEDLLOVERRIDES"
 
 log_info "Running minimal test with --debug=all --log-level=DEBUG --onedir..."
 if wine python.exe -m PyInstaller test_minimal.py \
@@ -693,32 +698,56 @@ fi
 # Try multiple build approaches in order of preference
 build_success=false
 
-# Approach 1: Use basic command-line build first (most reliable)
+# Approach 1: Use ONEDIR with FULL DEBUG (most diagnostic info)
 if [[ "$build_success" == "false" ]]; then
-    log_info "Attempt 1: Using basic command-line PyInstaller approach..."
-    if wine python.exe -m PyInstaller \
-        --onefile \
+    log_info "Attempt 1: Using ONEDIR with FULL DEBUG for maximum diagnostic info..."
+
+    # Directory snapshot before main build
+    echo "=== BEFORE MAIN BUILD ===" >> "logs/directory_snapshot.log"
+    find . -maxdepth 3 -type f | sort >> "logs/directory_snapshot.log"
+    echo "" >> "logs/directory_snapshot.log"
+
+    if wine python.exe -m PyInstaller main.py \
+        --onedir \
         --name SCADA-IDS-KC \
+        --log-level=DEBUG \
+        --debug=all \
+        --debug=imports \
         --hidden-import=scada_ids \
         --hidden-import=ui \
         --hidden-import=pydoc \
+        --collect-submodules sklearn \
+        --collect-submodules numpy \
         --add-data "config:config" \
         --noconfirm \
         --clean \
-        --log-level DEBUG \
         --distpath dist \
-        --workpath build \
-        main.py 2>&1 | tee "logs/pyinstaller_basic.log"; then
+        --workpath build 2>&1 | tee "logs/pyinstaller_main_debug.log"; then
 
-        # Verify the build actually produced an executable
-        if [[ -f "dist/SCADA-IDS-KC.exe" ]]; then
-            log_info "OK Basic command-line build succeeded and produced executable"
+        log_info "Main build completed, analyzing results..."
+
+        # Check for warnings and missing modules (critical for diagnosis)
+        log_info "Checking for warnings and missing modules..."
+        grep -R "WARNING" build 2>/dev/null | head -20 | tee "logs/build_warnings.log" || echo "No warnings found"
+        grep -R "missing module named" build 2>/dev/null | sort | uniq | head | tee "logs/missing_modules.log" || echo "No missing modules found"
+
+        # Look for bootloader creation indicators
+        grep -R "EXE->PKG\|Writing PKG" build 2>/dev/null | tee "logs/bootloader_creation.log" || echo "No bootloader creation found"
+
+        # Verify the build actually produced an executable (onedir format)
+        if [[ -f "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe" ]]; then
+            log_info "✅ ONEDIR build succeeded and produced executable"
+            log_info "Executable size: $(stat -c%s "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe" 2>/dev/null || echo "0") bytes"
+
+            # Copy to expected location for compatibility
+            cp "dist/SCADA-IDS-KC/SCADA-IDS-KC.exe" "dist/SCADA-IDS-KC.exe"
             build_success=true
         else
-            log_warn "FAIL Basic build completed but no executable found"
+            log_warn "❌ ONEDIR build completed but no executable found"
             log_warn "Contents of dist/: $(ls -la dist/ 2>/dev/null || echo 'empty')"
-            log_warn "Last 20 lines of build log:"
-            tail -20 "logs/pyinstaller_basic.log" || echo "No log available"
+            log_warn "Contents of build/: $(ls -la build/ 2>/dev/null || echo 'empty')"
+            log_warn "Last 30 lines of build log:"
+            tail -30 "logs/pyinstaller_main_debug.log" || echo "No log available"
         fi
     else
         log_warn "FAIL Basic command-line build failed, trying spec files..."
