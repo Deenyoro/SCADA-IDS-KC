@@ -376,11 +376,49 @@ fi
 # ---------- Windows Python -----------------
 if $FORCE_SETUP || ! wine python.exe -V &>/dev/null; then
   [[ -e $PYTHON_INSTALLER ]] || { log "Missing $PYTHON_INSTALLER" "$RED"; exit 1; }
-  log "[INFO] Installing Windows Python 3.11..." "$BLUE"
+  # Verify we have the FULL installer, not embeddable zip
+  log "[INFO] Verifying Python installer type..." "$BLUE"
+  if file "$PYTHON_INSTALLER" | grep -q "executable"; then
+    log "[INFO] ✅ Using full Windows Python installer (correct for PyInstaller)" "$GREEN"
+  else
+    log "[ERROR] ❌ Python installer appears to be wrong type - need full .exe installer" "$RED"
+    log "[ERROR] File type: $(file "$PYTHON_INSTALLER")" "$RED"
+    exit 1
+  fi
+
+  log "[INFO] Installing Windows Python 3.11 (FULL installer)..." "$BLUE"
   wine "$PYTHON_INSTALLER" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
   sleep 10
+
+  # CRITICAL: Remove any python311.zip that might cause PyInstaller to fail silently
+  log "[INFO] Checking for and removing problematic python311.zip..." "$BLUE"
+  find "$WINEPREFIX" -name "python311.zip" -exec rm -f {} \; 2>/dev/null || true
+  log "[INFO] ✅ Removed any python311.zip files that could cause silent failures" "$GREEN"
 fi
+
 log "[INFO] Windows Python: $(wine python.exe -V)" "$GREEN"
+
+# Verify Python installation is correct for PyInstaller
+log "[INFO] Verifying Python installation for PyInstaller compatibility..." "$BLUE"
+wine python.exe -c "
+import sys
+import os
+print(f'Python executable: {sys.executable}')
+print(f'Python path: {sys.path[:3]}')  # First 3 entries
+print(f'Stdlib location: {os.path.dirname(os.__file__)}')
+
+# Check for problematic zip-based stdlib
+if 'python311.zip' in str(sys.path):
+    print('❌ ERROR: python311.zip found in sys.path - this causes PyInstaller silent failures!')
+    sys.exit(1)
+else:
+    print('✅ No python311.zip in sys.path - good for PyInstaller')
+" 2>&1 | tee "logs/python_verification.log"
+
+if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+    log "[ERROR] Python installation verification failed - this will cause PyInstaller silent failures!" "$RED"
+    exit 1
+fi
 
 # ---------- Setup Build Environment --------
 log "[INFO] Setting up build environment..." "$BLUE"
@@ -616,7 +654,10 @@ export WINEDEBUG=err+all
 log_info "Wine debug enabled: WINEDEBUG=$WINEDEBUG"
 log_info "Wine DLL overrides: WINEDLLOVERRIDES=$WINEDLLOVERRIDES"
 
-log_info "Running minimal test with --debug=all --log-level=DEBUG --onedir..."
+log_info "Running minimal test with MAXIMUM debugging..."
+log_info "Command: wine python.exe -m PyInstaller test_minimal.py --onedir --name test_minimal --log-level=DEBUG --debug=all"
+
+# Run with maximum debugging and capture ALL output
 if wine python.exe -m PyInstaller test_minimal.py \
     --onedir \
     --name test_minimal \
@@ -636,10 +677,33 @@ if wine python.exe -m PyInstaller test_minimal.py \
         log_error "Contents of dist_test/: $(ls -la dist_test/ 2>/dev/null || echo 'empty')"
         log_error "Contents of build_test/: $(ls -la build_test/ 2>/dev/null || echo 'empty')"
 
+        # CRITICAL: Check if PyInstaller even started analysis
+        log_error "Checking if PyInstaller started analysis phase..."
+        if grep -q "Analysis" "logs/pyinstaller_minimal_debug.log" 2>/dev/null; then
+            log_error "✅ PyInstaller started analysis - failure is in later phase"
+        else
+            log_error "❌ PyInstaller never started analysis - fundamental issue!"
+            log_error "This indicates Python/PyInstaller installation problem"
+        fi
+
+        # Check for specific error patterns
+        log_error "Checking for specific error patterns..."
+        if grep -q "python311.zip" "logs/pyinstaller_minimal_debug.log" 2>/dev/null; then
+            log_error "❌ FOUND python311.zip issue - this causes silent failures!"
+        fi
+
+        if grep -q "vcruntime140\|msvcp140" "logs/pyinstaller_minimal_debug.log" 2>/dev/null; then
+            log_error "❌ FOUND VC++ runtime issue - missing DLLs!"
+        fi
+
         # Check for warnings and missing modules
         log_error "Checking for warnings and missing modules..."
         grep -R "WARNING" build_test 2>/dev/null | head -20 | tee -a "logs/pyinstaller_minimal_debug.log" || echo "No warnings found"
         grep -R "missing module named" build_test 2>/dev/null | sort | uniq | head | tee -a "logs/pyinstaller_minimal_debug.log" || echo "No missing modules found"
+
+        # Show last 50 lines of debug log for analysis
+        log_error "Last 50 lines of PyInstaller debug log:"
+        tail -50 "logs/pyinstaller_minimal_debug.log" 2>/dev/null || echo "No debug log available"
 
         exit 1
     fi
