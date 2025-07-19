@@ -4,7 +4,7 @@
 # Values can be modified here, through the GUI, or via CLI commands.
 # The system will automatically reload changes made to this file.
 # 
-# Generated: 2025-07-19 17:43:19
+# Generated: 2025-07-19 18:17:45
 # 
 # Boolean values: yes/no, true/false, 1/0
 # Lists: comma-separated values
@@ -16,7 +16,7 @@
 
 [network]
 interface = 
-bpf_filter = tcp and tcp[13]=2
+bpf_filter = tcp
 promiscuous_mode = yes
 capture_timeout = 3
 max_interface_name_length = 50
