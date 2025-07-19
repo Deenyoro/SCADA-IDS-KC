@@ -22,153 +22,129 @@ env:
   PYTHON_VERSION: ${{ github.event.inputs.python_version || '3.11.9' }}
 
 jobs:
-  build-windows-wine:
-    runs-on: ubuntu-22.04  # Use Ubuntu 22.04 for better Wine support
-    
+  # Wine build removed from GitHub Actions - not working reliably
+  # Local build_windows.sh script still available for local development
+
+  # Primary Windows build using native Windows environment
+  build-windows:
+    runs-on: windows-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Cache Wine and Python installer
-      uses: actions/cache@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        echo "📦 Installing Python dependencies..."
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install "pyinstaller>=6.14,<7" pyinstaller-hooks-contrib
+
+    - name: Build Windows executable with PyInstaller
+      run: |
+        echo "🚀 Building Windows executable with native PyInstaller..."
+
+        # Create dist and logs directories
+        New-Item -ItemType Directory -Force -Path dist, logs, build
+
+        # Build with PyInstaller using onefile approach
+        pyinstaller --onefile `
+          --name SCADA-IDS-KC `
+          --paths src `
+          --hidden-import=scada_ids `
+          --hidden-import=scada_ids.settings `
+          --hidden-import=scada_ids.controller `
+          --hidden-import=scada_ids.capture `
+          --hidden-import=scada_ids.features `
+          --hidden-import=scada_ids.ml `
+          --hidden-import=scada_ids.notifier `
+          --hidden-import=ui `
+          --hidden-import=ui.main_window `
+          --hidden-import=pydoc `
+          --collect-all sklearn `
+          --collect-all scipy `
+          --collect-all numpy `
+          --collect-all joblib `
+          --add-data "config;config" `
+          --add-data "src;src" `
+          --noconfirm `
+          --clean `
+          --log-level DEBUG `
+          --distpath dist `
+          --workpath build `
+          main.py
+    - name: Verify Windows executable
+      run: |
+        echo "📋 Verifying Windows executable..."
+        if (Test-Path "dist/SCADA-IDS-KC.exe") {
+          echo "✅ Executable created successfully"
+          $size = (Get-Item "dist/SCADA-IDS-KC.exe").Length
+          echo "📊 File size: $size bytes"
+
+          # Test if it's a valid PE executable
+          $fileInfo = Get-Command "dist/SCADA-IDS-KC.exe" -ErrorAction SilentlyContinue
+          if ($fileInfo) {
+            echo "✅ Valid Windows PE executable"
+          } else {
+            echo "⚠️ File exists but may not be a valid executable"
+          }
+        } else {
+          echo "❌ Executable not found"
+          echo "Contents of dist/:"
+          Get-ChildItem dist/ -ErrorAction SilentlyContinue
+          exit 1
+        }
+
+    - name: Create build info
+      run: |
+        echo "Creating build information file..."
+        @"
+        SCADA-IDS-KC Windows Native Build Information
+        ==========================================
+
+        Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+        Git Commit: ${{ github.sha }}
+        Git Branch: ${{ github.ref_name }}
+        Python Version: $(python --version)
+        Build Environment: GitHub Actions Windows Server 2022
+        Build Method: Native Windows PyInstaller (not Wine cross-compilation)
+
+        File Information:
+        $(if (Test-Path "dist/SCADA-IDS-KC.exe") {
+          "Size: $((Get-Item 'dist/SCADA-IDS-KC.exe').Length) bytes"
+          "Created: $((Get-Item 'dist/SCADA-IDS-KC.exe').CreationTime)"
+        } else {
+          "Executable not found"
+        })
+
+        Build Triggered By: ${{ github.event_name }}
+        Actor: ${{ github.actor }}
+
+        PyInstaller Version: $(pip show pyinstaller | Select-String "Version")
+        "@  | Out-File -FilePath "dist/BUILD_INFO.txt" -Encoding UTF8
+
+    - name: Upload Windows executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-executable-${{ github.sha }}
         path: |
-          ~/.cache/winetricks
-          ~/.wine_scada_build
-          python-3.11.9-amd64.exe
-        key: ${{ runner.os }}-wine-python-${{ env.PYTHON_VERSION }}
-        restore-keys: |
-          ${{ runner.os }}-wine-python-
+          dist/SCADA-IDS-KC.exe
+          dist/BUILD_INFO.txt
+        retention-days: 30
+        if-no-files-found: error
 
-    - name: Download Windows Python installer
-      run: |
-        echo "📥 Downloading Windows Python installer..."
-        if [ ! -f "python-3.11.9-amd64.exe" ]; then
-          wget -q https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe
-          echo "✅ Python installer downloaded"
-        else
-          echo "✅ Python installer already exists"
-        fi
-
-    - name: Build Windows executable with Wine + Windows Python (under Xvfb)
-      id: build
-      continue-on-error: true
-      working-directory: ${{ github.workspace }}
-      run: |
-        echo "🚀 Building TRUE Windows PE executable using Wine + Windows Python..."
-        echo "📦 Installing Wine GUI helpers and Winetricks dependencies..."
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends \
-          xvfb \
-          cabextract \
-          p7zip-full \
-          unzip \
-          winbind
-        echo "✅ Dependencies installed"
-
-        # Create logs directory early
-        mkdir -p logs/ build/ dist/
-
-        echo "🖥️ Running build under virtual X server for Wine GUI support..."
-        chmod +x build_windows.sh
-
-        # Set build environment variables for better logging
-        export BUILD_LOG="logs/github_actions_build_$(date +%Y%m%d_%H%M%S).log"
-        export CI=true
-        export GITHUB_ACTIONS=true
-
-        # Run build with enhanced error capture
-        set +e  # Don't exit on error, we want to capture it
-        xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
-          ./build_windows.sh --clean --create-installer --verbose 2>&1 | tee "logs/build_output.log"
-        BUILD_EXIT_CODE=$?
-        set -e
-
-        echo "BUILD_EXIT_CODE=$BUILD_EXIT_CODE" >> $GITHUB_ENV
-        echo "Build completed with exit code: $BUILD_EXIT_CODE"
-
-        # Always create a build summary, regardless of success/failure
-        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- **Exit Code:** $BUILD_EXIT_CODE" >> $GITHUB_STEP_SUMMARY
-        echo "- **Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Wine Version:** $(wine --version 2>/dev/null || echo 'N/A')" >> $GITHUB_STEP_SUMMARY
-
-        # Check if executable was actually created (critical verification)
-        if [ -f "dist/SCADA-IDS-KC.exe" ]; then
-          EXECUTABLE_SIZE=$(stat -c%s "dist/SCADA-IDS-KC.exe" 2>/dev/null || echo "0")
-          echo "- **Executable:** ✅ Created (${EXECUTABLE_SIZE} bytes)" >> $GITHUB_STEP_SUMMARY
-          echo "EXECUTABLE_VERIFIED=true" >> $GITHUB_ENV
-        else
-          echo "- **Executable:** ❌ NOT FOUND" >> $GITHUB_STEP_SUMMARY
-          echo "EXECUTABLE_VERIFIED=false" >> $GITHUB_ENV
-          # Force failure even if build reported success
-          BUILD_EXIT_CODE=1
-        fi
-
-        if [ $BUILD_EXIT_CODE -eq 0 ] && [ "${EXECUTABLE_VERIFIED:-false}" = "true" ]; then
-          echo "- **Status:** ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "- **Status:** ❌ FAILED" >> $GITHUB_STEP_SUMMARY
-          echo "- **Error Details:** Check build logs for detailed error information" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        # List all generated files for debugging
-        echo "### Generated Files" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        find . -name "*.exe" -o -name "*.log" -o -name "*.txt" | head -20 >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-        # Additional debugging for missing executable
-        if [ "${EXECUTABLE_VERIFIED:-false}" = "false" ]; then
-          echo "### Debug Information" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "Contents of dist/:" >> $GITHUB_STEP_SUMMARY
-          ls -la dist/ 2>/dev/null || echo "dist/ directory not found" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Contents of build/:" >> $GITHUB_STEP_SUMMARY
-          ls -la build/ 2>/dev/null || echo "build/ directory not found" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-          # Show critical diagnostic results directly in GitHub Actions summary
-          echo "### Critical Diagnostic Results" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-          # PyInstaller import test result
-          if [ -f "logs/pyinstaller_import_test.log" ]; then
-            echo "PyInstaller Import Test:" >> $GITHUB_STEP_SUMMARY
-            cat logs/pyinstaller_import_test.log >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # PyInstaller CLI test result
-          if [ -f "logs/pyinstaller_help_test.log" ]; then
-            echo "PyInstaller CLI Test:" >> $GITHUB_STEP_SUMMARY
-            head -5 logs/pyinstaller_help_test.log >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Ultra minimal test result
-          if [ -f "logs/ultra_minimal_test.log" ]; then
-            echo "Ultra Minimal Test Result:" >> $GITHUB_STEP_SUMMARY
-            tail -10 logs/ultra_minimal_test.log >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Python verification result
-          if [ -f "logs/python_verification.log" ]; then
-            echo "Python Verification:" >> $GITHUB_STEP_SUMMARY
-            cat logs/python_verification.log >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Environment dump key info
-          if [ -f "logs/environment_dump.log" ]; then
-            echo "Environment Summary:" >> $GITHUB_STEP_SUMMARY
-            grep -A 5 "PYTHON ENVIRONMENT\|PYINSTALLER ENVIRONMENT" logs/environment_dump.log >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+    - name: Upload build logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs-${{ github.sha }}
+        path: |
+          build/
+        retention-days: 7
+        if-no-files-found: warn
         fi
 
         exit $BUILD_EXIT_CODE
@@ -497,8 +473,8 @@ jobs:
 
   test-windows:
     runs-on: windows-latest
-    needs: [build-windows-wine, build-windows]
-    if: (github.event_name == 'pull_request' || github.event_name == 'push') && (needs.build-windows.result == 'success' || needs.build-windows-wine.result == 'success')
+    needs: build-windows
+    if: (github.event_name == 'pull_request' || github.event_name == 'push') && needs.build-windows.result == 'success'
     
     steps:
     - name: Download Windows executable
