@@ -10,7 +10,10 @@ import threading
 import time
 import weakref
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 import warnings
 
 try:
@@ -317,7 +320,7 @@ class MLDetector:
             self._last_error_time = current_time
             return 0.0, False
 
-    def _features_to_vector(self, features: Dict[str, float]) -> Optional[np.ndarray]:
+    def _features_to_vector(self, features: Dict[str, float]) -> Optional["np.ndarray"]:
         """Convert feature dictionary to numpy array in expected order with validation."""
         try:
             feature_values = []
@@ -391,7 +394,7 @@ class MLDetector:
         
         return True
     
-    def _validate_feature_array(self, feature_array: np.ndarray) -> bool:
+    def _validate_feature_array(self, feature_array: "np.ndarray") -> bool:
         """Validate feature array for security."""
         if feature_array is None:
             return False
