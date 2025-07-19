@@ -835,6 +835,11 @@ class MainWindow(QMainWindow):
         self.stats_timer = QTimer()
         self.stats_timer.timeout.connect(self._update_statistics)
         self.stats_timer.start(2000)  # Update every 2 seconds
+        
+        # System status update timer (ML and network status)
+        self.status_timer = QTimer()
+        self.status_timer.timeout.connect(self._update_system_status)
+        self.status_timer.start(5000)  # Update every 5 seconds
     
     def _refresh_interfaces(self):
         """Refresh the list of available network interfaces."""
@@ -1049,6 +1054,28 @@ class MainWindow(QMainWindow):
             self.ml_status_label.setText("🧠 ML: Error")
             self.ml_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #F44336; }")
             self.ml_status_label.setToolTip(f"Error checking ML status: {e}")
+        
+        # Update network status
+        try:
+            if self.is_monitoring:
+                self.network_status_label.setText("🌐 Network: Active")
+                self.network_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #4CAF50; }")
+                self.network_status_label.setToolTip("Network monitoring is active")
+            else:
+                interface_count = self.interface_combo.count()
+                if interface_count > 0:
+                    self.network_status_label.setText("🌐 Network: Ready")
+                    self.network_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #2196F3; }")
+                    self.network_status_label.setToolTip(f"{interface_count} network interfaces available")
+                else:
+                    self.network_status_label.setText("🌐 Network: No Interfaces")
+                    self.network_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #FF9800; }")
+                    self.network_status_label.setToolTip("No network interfaces detected")
+        except Exception as e:
+            logger.error(f"Error updating network status: {e}")
+            self.network_status_label.setText("🌐 Network: Error")
+            self.network_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #F44336; }")
+            self.network_status_label.setToolTip(f"Error checking network status: {e}")
     
     def _update_statistics_from_signal(self, stats: Dict[str, Any]):
         """Update statistics from worker thread signal."""
