@@ -2,9 +2,12 @@
 # PowerShell script for building the application on Windows with offline support
 
 param(
+    [switch]$DownloadDeps = $false,
+    [switch]$InstallDeps = $false,
     [switch]$Offline = $false,
-    [switch]$SkipInstallers = $false,
-    [switch]$Clean = $false
+    [switch]$Clean = $false,
+    [switch]$SkipTests = $false,
+    [switch]$CreateInstaller = $false
 )
 
 # Set error action preference
@@ -15,7 +18,13 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
 Write-Host "=== SKADA-IDS-KC Windows Build Script ===" -ForegroundColor Green
-Write-Host "Build mode: $(if ($Offline) { 'Offline' } else { 'Online' })" -ForegroundColor Yellow
+Write-Host "Build configuration:" -ForegroundColor Yellow
+Write-Host "  Download Dependencies: $DownloadDeps" -ForegroundColor Gray
+Write-Host "  Install Dependencies: $InstallDeps" -ForegroundColor Gray
+Write-Host "  Offline Mode: $Offline" -ForegroundColor Gray
+Write-Host "  Clean Build: $Clean" -ForegroundColor Gray
+Write-Host "  Skip Tests: $SkipTests" -ForegroundColor Gray
+Write-Host "  Create Installer: $CreateInstaller" -ForegroundColor Gray
 
 # Clean previous build if requested
 if ($Clean) {
@@ -30,8 +39,18 @@ if (-not (Test-Path "logs")) {
     New-Item -ItemType Directory -Path "logs" | Out-Null
 }
 
+# Download dependencies if requested
+if ($DownloadDeps) {
+    Write-Host "Downloading dependencies..." -ForegroundColor Yellow
+    if (Test-Path "setup_windows_deps.ps1") {
+        & ".\setup_windows_deps.ps1" -Force
+    } else {
+        Write-Warning "setup_windows_deps.ps1 not found, skipping dependency download"
+    }
+}
+
 # Install system dependencies (optional)
-if (-not $SkipInstallers) {
+if ($InstallDeps) {
     Write-Host "Installing system dependencies..." -ForegroundColor Yellow
     
     # Install Npcap (silent installation)
@@ -61,6 +80,8 @@ if (-not $SkipInstallers) {
     } else {
         Write-Warning "Visual C++ Redistributable installer not found at $vcredistPath"
     }
+} elseif (-not $DownloadDeps -and -not $InstallDeps) {
+    Write-Host "Skipping system dependency installation (use -InstallDeps to enable)" -ForegroundColor Yellow
 }
 
 # Create virtual environment
@@ -230,12 +251,27 @@ if (Test-Path $exePath) {
     Write-Host "Size: $([math]::Round($fileInfo.Length / 1MB, 2)) MB" -ForegroundColor Cyan
     Write-Host "Created: $($fileInfo.CreationTime)" -ForegroundColor Cyan
     
+    # Run tests if not skipped
+    if (-not $SkipTests) {
+        Write-Host "Running system tests..." -ForegroundColor Yellow
+        $env:PYTHONPATH = "src"
+        
+        if (Test-Path "tests\test_system.py") {
+            try {
+                python tests\test_system.py
+            } catch {
+                Write-Warning "System tests failed, but continuing..."
+            }
+        }
+    }
+    
     # Test the executable
     Write-Host "Testing executable..." -ForegroundColor Yellow
     try {
         $output = & $exePath --version 2>&1
         if ($output -match "SKADA-IDS-KC") {
             Write-Host "Executable test successful!" -ForegroundColor Green
+            Write-Host "Output: $output" -ForegroundColor Gray
         } else {
             Write-Warning "Executable test produced unexpected output: $output"
         }
@@ -260,5 +296,23 @@ if (Test-Path $nsisScript) {
     }
 }
 
+# Create installer if requested
+if ($CreateInstaller) {
+    Write-Host "Creating installer package..." -ForegroundColor Yellow
+    $zipPath = "dist\SKADA-IDS-KC-Windows.zip"
+    try {
+        if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::CreateFromDirectory("dist", $zipPath)
+        Write-Host "Installation package created: $zipPath" -ForegroundColor Green
+    } catch {
+        Write-Warning "Failed to create installation package: $($_.Exception.Message)"
+    }
+}
+
 Write-Host "=== Build Complete ===" -ForegroundColor Green
-Write-Host "Run the application: .\dist\SKADA-IDS-KC.exe" -ForegroundColor Yellow
+Write-Host ""  
+Write-Host "Quick start commands:" -ForegroundColor Yellow
+Write-Host "  .\dist\SKADA-IDS-KC.exe --help          # Show help" -ForegroundColor White
+Write-Host "  .\dist\SKADA-IDS-KC.exe --cli --status  # Check status" -ForegroundColor White
+Write-Host "  .\dist\SKADA-IDS-KC.exe                 # Run GUI mode" -ForegroundColor White
