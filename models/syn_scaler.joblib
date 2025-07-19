@@ -1,0 +1,4 @@
+PLACEHOLDER_SCALER_FILE
+This is a placeholder for the actual ML scaler file.
+To create real models, run: python3 create_dummy_models.py
+Or replace with your trained scikit-learn scaler saved with joblib.dump()

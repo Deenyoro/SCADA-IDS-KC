@@ -1,0 +1,131 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.claude/
+CLAUDE.md
+
+# Logs
+logs/
+*.log
+
+# Qt
+*.qrc.py
+*_rc.py
+
+# Application specific
+config/local.yaml
+models/*.pkl
+models/*.model
+temp/
+cache/
+
+# Build artifacts
+packaging/*.exe
+packaging/*.msi
+packaging/*.deb
+packaging/*.rpm
+
+# Additional Python exclusions
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Additional IDE and Editor files
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+.spyderproject
+.spyproject
+.ropeproject
+
+# Additional OS-specific files
+Desktop.ini
+ehthumbs.db
+
+# Additional temporary and build files
+*.tmp
+*.temp
+tmp/
+.eggs/
+*.egg-info/
+__pypackages__/
+
+# AI and automation tools (excluded)
+.ai/
+.assistant/
+.chatgpt/
+.copilot/
+ai_config.json
+assistant_config.json
+claude.md
+
+# Application-specific temporary files
+*.joblib.tmp
+*.yaml.tmp
+*.json.tmp
+requirements.offline/
+installers/
