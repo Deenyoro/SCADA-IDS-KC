@@ -10,6 +10,8 @@ from typing import Optional, Callable, List, Dict, Any
 import weakref
 import signal
 import sys
+import subprocess
+import json
 
 try:
     # Suppress Scapy warnings about missing optional features
@@ -123,6 +125,60 @@ class PacketSniffer:
     def get_interfaces(self) -> List[str]:
         """Get available network interfaces."""
         return self.interfaces
+    
+    def get_interfaces_with_names(self) -> List[Dict[str, str]]:
+        """Get available network interfaces with friendly names on Windows."""
+        interfaces = self.interfaces
+        
+        if sys.platform != "win32":
+            # On non-Windows, just return the interface names as-is
+            return [{'guid': iface, 'name': iface} for iface in interfaces]
+        
+        # On Windows, try to get friendly names
+        interface_map = []
+        
+        try:
+            # Try using PowerShell to get network adapter info
+            cmd = 'powershell -Command "Get-NetAdapter | Select-Object -Property InterfaceGuid,Name,Status | ConvertTo-Json"'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0 and result.stdout:
+                try:
+                    adapters = json.loads(result.stdout)
+                    if not isinstance(adapters, list):
+                        adapters = [adapters]
+                    
+                    # Create a mapping of GUIDs to friendly names
+                    guid_to_name = {}
+                    for adapter in adapters:
+                        guid = adapter.get('InterfaceGuid', '').strip('{}')
+                        name = adapter.get('Name', '')
+                        status = adapter.get('Status', '')
+                        if guid and name:
+                            # Include status in name if not "Up"
+                            if status and status != 'Up':
+                                name = f"{name} ({status})"
+                            guid_to_name[guid.upper()] = name
+                    
+                    # Match our interfaces with friendly names
+                    for iface in interfaces:
+                        # Extract GUID from interface string
+                        guid = iface.strip('{}').upper()
+                        friendly_name = guid_to_name.get(guid, iface)
+                        interface_map.append({'guid': iface, 'name': friendly_name})
+                    
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse network adapter JSON")
+                    interface_map = [{'guid': iface, 'name': iface} for iface in interfaces]
+            else:
+                logger.warning("Failed to get network adapter names from PowerShell")
+                interface_map = [{'guid': iface, 'name': iface} for iface in interfaces]
+                
+        except Exception as e:
+            logger.warning(f"Failed to get friendly interface names: {e}")
+            interface_map = [{'guid': iface, 'name': iface} for iface in interfaces]
+        
+        return interface_map
     
     def set_interface(self, interface: str) -> bool:
         """

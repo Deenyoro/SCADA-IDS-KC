@@ -1,7 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = []
+datas = [
+    ('models', 'models'),
+    ('config', 'config'),
+    ('src/ui/icons', 'src/ui/icons'),
+]
 binaries = []
 hiddenimports = ['pydoc', 'scipy._cyutility', 'scada_ids', 'ui']
 tmp_ret = collect_all('sklearn')

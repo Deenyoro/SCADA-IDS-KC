@@ -660,7 +660,7 @@ class DummyClassifier:
     """Dummy classifier for testing when real model is not available."""
     
     def __init__(self):
-        self.n_features_in_ = 20
+        self.n_features_in_ = 19  # Match actual feature count
         self.classes_ = [0, 1]
     
     def predict_proba(self, X):

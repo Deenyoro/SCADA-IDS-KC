@@ -155,11 +155,49 @@ def run_cli_mode(args):
             return 0
         
         if args.interfaces:
-            interfaces = controller.get_available_interfaces()
-            print("Available network interfaces:")
-            for i, interface in enumerate(interfaces, 1):
-                print(f"  {i}. {interface}")
+            # Try to get interfaces with friendly names
+            try:
+                interfaces_info = controller.get_interfaces_with_names()
+                print("Available network interfaces:")
+                for i, iface_info in enumerate(interfaces_info, 1):
+                    name = iface_info['name']
+                    guid = iface_info['guid']
+                    if name != guid:
+                        print(f"  {i}. {name} ({guid})")
+                    else:
+                        print(f"  {i}. {guid}")
+            except AttributeError:
+                # Fallback to basic interface list
+                interfaces = controller.get_available_interfaces()
+                print("Available network interfaces:")
+                for i, interface in enumerate(interfaces, 1):
+                    print(f"  {i}. {interface}")
             return 0
+        
+        if args.interfaces_detailed:
+            # Show detailed interface information
+            try:
+                interfaces_info = controller.get_interfaces_with_names()
+                print("Available network interfaces (with friendly names):")
+                for i, iface_info in enumerate(interfaces_info, 1):
+                    name = iface_info['name']
+                    guid = iface_info['guid']
+                    print(f"  {i}. Name: {name}")
+                    print(f"     GUID: {guid}")
+                    print()
+            except AttributeError:
+                print("Detailed interface information not available")
+                return 1
+            return 0
+        
+        if args.model_info:
+            return show_model_info(controller)
+        
+        if args.reload_models:
+            return reload_models(controller)
+        
+        if args.load_model or args.load_scaler:
+            return load_custom_models(controller, args.load_model, args.load_scaler)
         
         if args.test_ml:
             return test_ml_models()
@@ -182,14 +220,23 @@ def run_cli_mode(args):
 def print_system_status(status):
     """Print system status information."""
     print("=== SCADA-IDS-KC System Status ===")
-    print(f"Running: {'Yes' if status['is_running'] else 'No'}")
-    print(f"ML Model Loaded: {'Yes' if status['ml_model_loaded'] else 'No'}")
-    print(f"Notifications Enabled: {'Yes' if status['notifications_enabled'] else 'No'}")
+    print(f"Running: {'Yes' if status.get('is_running', False) else 'No'}")
+    
+    # ML model status from ml_detector sub-dict
+    ml_info = status.get('ml_detector', {})
+    print(f"ML Model Loaded: {'Yes' if ml_info.get('is_loaded', False) else 'No'}")
+    if ml_info.get('is_loaded'):
+        print(f"ML Model Type: {ml_info.get('model_type', 'Unknown')}")
+    
+    # Notification status from notification_manager sub-dict
+    notif_info = status.get('notification_manager', {})
+    print(f"Notifications Enabled: {'Yes' if notif_info.get('notifications_enabled', False) else 'No'}")
+    
     print(f"Current Interface: {status.get('current_interface', 'None')}")
-    print(f"Available Interfaces: {len(status.get('available_interfaces', []))}")
+    print(f"Available Interfaces: {len(status.get('interfaces', []))}")
     
     # Print statistics if available
-    stats = status.get('stats', {})
+    stats = status.get('statistics', {})
     if stats:
         print("\n=== Statistics ===")
         print(f"Packets Captured: {stats.get('packets_captured', 0)}")
@@ -253,6 +300,103 @@ def test_ml_models():
     except Exception as e:
         logger.error(f"ML model test failed: {e}")
         print(f"ERROR: ML model test failed: {e}")
+        return 1
+
+
+def show_model_info(controller):
+    """Show detailed ML model information."""
+    try:
+        detector = get_detector()
+        
+        print("=== ML Model Information ===")
+        
+        # Get model info
+        info = detector.get_model_info()
+        print(f"Model Loaded: {'Yes' if info.get('is_loaded', False) else 'No'}")
+        
+        if info.get('is_loaded'):
+            print(f"Model Type: {info.get('model_type', 'Unknown')}")
+            print(f"Model Hash: {info.get('model_hash', 'N/A')}")
+            print(f"Scaler Loaded: {'Yes' if info.get('has_scaler', False) else 'No'}")
+            print(f"Scaler Hash: {info.get('scaler_hash', 'N/A')}")
+            print(f"Expected Features: {info.get('expected_features', 0)}")
+            print(f"Threshold: {info.get('threshold', 0.0)}")
+            print(f"Prediction Count: {info.get('prediction_count', 0)}")
+            print(f"Error Count: {info.get('error_count', 0)}")
+            print(f"Load Time: {info.get('load_timestamp', 'N/A')}")
+            
+            # Show feature names
+            if detector.expected_features:
+                print("\nExpected Feature Order:")
+                for i, feature in enumerate(detector.expected_features, 1):
+                    print(f"  {i:2d}. {feature}")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"ERROR: Failed to get model info: {e}")
+        return 1
+
+
+def reload_models(controller):
+    """Reload ML models from disk."""
+    try:
+        print("Reloading ML models...")
+        
+        detector = get_detector()
+        
+        # Reload models using default paths
+        success = detector.load_models()
+        
+        if success:
+            print("SUCCESS: ML models reloaded successfully")
+            
+            # Show updated info
+            info = detector.get_model_info()
+            print(f"Model Type: {info.get('model_type', 'Unknown')}")
+            print(f"Expected Features: {info.get('expected_features', 0)}")
+            return 0
+        else:
+            print("ERROR: Failed to reload ML models")
+            return 1
+            
+    except Exception as e:
+        print(f"ERROR: Model reload failed: {e}")
+        return 1
+
+
+def load_custom_models(controller, model_path=None, scaler_path=None):
+    """Load custom ML models from specified paths."""
+    try:
+        print("Loading custom ML models...")
+        
+        detector = get_detector()
+        
+        if model_path:
+            print(f"Model path: {model_path}")
+        if scaler_path:
+            print(f"Scaler path: {scaler_path}")
+        
+        # Load models with custom paths
+        success = detector.load_models(model_path=model_path, scaler_path=scaler_path)
+        
+        if success:
+            print("SUCCESS: Custom ML models loaded successfully")
+            
+            # Show updated info
+            info = detector.get_model_info()
+            print(f"Model Type: {info.get('model_type', 'Unknown')}")
+            print(f"Expected Features: {info.get('expected_features', 0)}")
+            print(f"Model Hash: {info.get('model_hash', 'N/A')[:16]}...")
+            if scaler_path:
+                print(f"Scaler Hash: {info.get('scaler_hash', 'N/A')[:16]}...")
+            return 0
+        else:
+            print("ERROR: Failed to load custom ML models")
+            return 1
+            
+    except Exception as e:
+        print(f"ERROR: Custom model loading failed: {e}")
         return 1
 
 
@@ -373,10 +517,20 @@ Examples:
                        help='Show system status (CLI mode)')
     parser.add_argument('--interfaces', action='store_true',
                        help='List available network interfaces (CLI mode)')
+    parser.add_argument('--interfaces-detailed', action='store_true',
+                       help='List network interfaces with friendly names (CLI mode)')
     parser.add_argument('--test-ml', action='store_true',
                        help='Test ML model loading and prediction (CLI mode)')
     parser.add_argument('--test-notifications', action='store_true',
                        help='Test notification system (CLI mode)')
+    parser.add_argument('--model-info', action='store_true',
+                       help='Show detailed ML model information (CLI mode)')
+    parser.add_argument('--reload-models', action='store_true',
+                       help='Reload ML models from disk (CLI mode)')
+    parser.add_argument('--load-model', type=str,
+                       help='Load specific model file (CLI mode)')
+    parser.add_argument('--load-scaler', type=str,
+                       help='Load specific scaler file (CLI mode)')
     parser.add_argument('--monitor', action='store_true',
                        help='Start network monitoring (CLI mode)')
     parser.add_argument('--interface', type=str,

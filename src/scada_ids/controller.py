@@ -425,6 +425,10 @@ class IDSController:
         """Get list of available network interfaces."""
         return self.packet_sniffer.get_interfaces()
     
+    def get_interfaces_with_names(self) -> List[Dict[str, str]]:
+        """Get list of available network interfaces with friendly names."""
+        return self.packet_sniffer.get_interfaces_with_names()
+    
     def set_interface(self, interface: str) -> bool:
         """
         Set the network interface for packet capture.

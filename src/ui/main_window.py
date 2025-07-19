@@ -329,14 +329,35 @@ class MainWindow(QMainWindow):
     def _refresh_interfaces(self):
         """Refresh the list of available network interfaces."""
         try:
-            interfaces = self.controller.get_available_interfaces()
-            
-            self.interface_combo.clear()
-            if interfaces:
-                self.interface_combo.addItems(interfaces)
-                self._log_message("INFO", f"Found {len(interfaces)} network interfaces")
-            else:
-                self._log_message("WARNING", "No network interfaces found")
+            # Try to get interfaces with friendly names
+            try:
+                interfaces_info = self.controller.get_interfaces_with_names()
+                self.interface_combo.clear()
+                
+                if interfaces_info:
+                    for iface_info in interfaces_info:
+                        name = iface_info['name']
+                        guid = iface_info['guid']
+                        # Display friendly name if available, store GUID as user data
+                        if name != guid:
+                            display_name = f"{name} ({guid[:8]}...)"
+                        else:
+                            display_name = guid
+                        self.interface_combo.addItem(display_name, guid)
+                    
+                    self._log_message("INFO", f"Found {len(interfaces_info)} network interfaces")
+                else:
+                    self._log_message("WARNING", "No network interfaces found")
+                    
+            except AttributeError:
+                # Fallback to basic interface list if new method not available
+                interfaces = self.controller.get_available_interfaces()
+                self.interface_combo.clear()
+                if interfaces:
+                    self.interface_combo.addItems(interfaces)
+                    self._log_message("INFO", f"Found {len(interfaces)} network interfaces")
+                else:
+                    self._log_message("WARNING", "No network interfaces found")
                 
         except Exception as e:
             self._log_message("ERROR", f"Failed to refresh interfaces: {e}")
@@ -352,7 +373,11 @@ class MainWindow(QMainWindow):
         if self.is_monitoring:
             return
         
-        interface = self.interface_combo.currentText()
+        # Get the GUID from combo box data, fallback to text if no data
+        interface = self.interface_combo.currentData()
+        if not interface:
+            interface = self.interface_combo.currentText()
+        
         if not interface:
             QMessageBox.warning(self, "Warning", "Please select a network interface first.")
             return
@@ -360,11 +385,15 @@ class MainWindow(QMainWindow):
         try:
             # Check if system is ready
             status = self.controller.get_status()
-            if not status['ml_model_loaded']:
+            
+            # Check ML model status
+            ml_info = status.get('ml_detector', {})
+            if not ml_info.get('is_loaded', False):
                 QMessageBox.critical(self, "Error", "ML model not loaded. Check model files.")
                 return
             
-            if not status['available_interfaces']:
+            # Check interfaces availability
+            if not status.get('interfaces', []):
                 QMessageBox.critical(self, "Error", "No network interfaces available.")
                 return
             

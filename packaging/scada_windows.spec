@@ -83,7 +83,22 @@ for config_file, dest_dir in config_files:
         print(f"  Warning: Config file not found: {config_file}")
 
 # Include ML models if they exist
-model_files = [
+# First, include the main models used by the application
+main_model_files = [
+    "syn_model.joblib",
+    "syn_scaler.joblib"
+]
+
+models_found = 0
+for model_file in main_model_files:
+    model_path = models_path / model_file
+    if model_path.exists():
+        datas.append((str(model_path), "models"))
+        models_found += 1
+        print(f"  Added main model: {model_file}")
+
+# Also include enhanced models for completeness
+enhanced_model_files = [
     "RandomForest.joblib",
     "standard_scaler.joblib",
     "MLP.joblib",
@@ -91,13 +106,12 @@ model_files = [
 ]
 
 model_base_path = models_path / "results_enhanced_data-spoofing" / "trained_models"
-models_found = 0
-for model_file in model_files:
+for model_file in enhanced_model_files:
     model_path = model_base_path / model_file
     if model_path.exists():
         datas.append((str(model_path), "models/results_enhanced_data-spoofing/trained_models"))
         models_found += 1
-        print(f"  Added model: {model_file}")
+        print(f"  Added enhanced model: {model_file}")
 
 if models_found == 0:
     print("  Warning: No ML models found - application will use dummy models")
