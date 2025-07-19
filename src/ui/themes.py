@@ -3,7 +3,7 @@ Theme management for SCADA-IDS-KC GUI application.
 Provides light and dark themes with consistent styling.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QPalette, QColor

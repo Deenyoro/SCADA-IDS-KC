@@ -41,7 +41,8 @@ jobs:
         echo "📦 Installing Python dependencies..."
         pip install --upgrade pip
         pip install -r requirements.txt
-        pip install "pyinstaller>=6.14,<7" pyinstaller-hooks-contrib
+        pip install "pyinstaller==6.6.0" pyinstaller-hooks-contrib
+        pip install "pefile==2023.2.7" altgraph
 
     - name: Build Windows executable with PyInstaller
       run: |
@@ -70,6 +71,8 @@ jobs:
           --collect-all joblib `
           --add-data "config;config" `
           --add-data "src;src" `
+          --add-data "models;models" `
+          --add-data "logo.png;." `
           --noconfirm `
           --clean `
           --log-level DEBUG `

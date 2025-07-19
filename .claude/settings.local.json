@@ -19,7 +19,11 @@
       "Bash(dir syn_scaler.joblib)",
       "Bash(copy:*)",
       "Bash(grep:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(..venvScriptsActivate.ps1)",
+      "Bash(./Activate.ps1)",
+      "Bash(C:\\Git\\SCADA-IDS-KC\\.venv\\Scripts\\python.exe -m pip install altgraph pefile)",
+      "Bash(.venvScriptspython.exe -m pip install altgraph pefile)"
     ],
     "deny": []
   }
