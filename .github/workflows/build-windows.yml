@@ -23,38 +23,60 @@ env:
 
 jobs:
   build-windows:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # Use Ubuntu 22.04 for better Wine support
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Cache Docker layers
-      uses: actions/cache@v3
+    - name: Cache Wine and Python installer
+      uses: actions/cache@v4
       with:
-        path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        path: |
+          ~/.cache/winetricks
+          ~/.wine_scada_build
+          python-3.11.9-amd64.exe
+        key: ${{ runner.os }}-wine-python-${{ env.PYTHON_VERSION }}
         restore-keys: |
-          ${{ runner.os }}-buildx-
-          
-    - name: Build Windows executable with Docker
+          ${{ runner.os }}-wine-python-
+
+    - name: Download Windows Python installer
       run: |
-        echo "🚀 Building Windows executable using Docker cross-compilation..."
-        ./build_docker.sh --clean --test --python-version "${{ env.PYTHON_VERSION }}"
+        echo "📥 Downloading Windows Python installer..."
+        if [ ! -f "python-3.11.9-amd64.exe" ]; then
+          wget -q https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe
+          echo "✅ Python installer downloaded"
+        else
+          echo "✅ Python installer already exists"
+        fi
+
+    - name: Build Windows executable with Wine + Windows Python
+      run: |
+        echo "🚀 Building TRUE Windows PE executable using Wine + Windows Python..."
+        chmod +x build_windows.sh
+        ./build_windows.sh --clean --create-installer
         
-    - name: Verify build output
+    - name: Verify Windows PE executable
       run: |
-        echo "📋 Verifying build output..."
+        echo "📋 Verifying TRUE Windows PE executable..."
         if [ -f "dist/SCADA-IDS-KC.exe" ]; then
           echo "✅ Executable found"
           ls -lh dist/SCADA-IDS-KC.exe
-          file dist/SCADA-IDS-KC.exe
+          file_type=$(file dist/SCADA-IDS-KC.exe)
+          echo "📊 File type: $file_type"
           echo "📊 File size: $(ls -lh dist/SCADA-IDS-KC.exe | awk '{print $5}')"
+
+          # Verify it's a TRUE Windows PE executable
+          if echo "$file_type" | grep -q "PE32.*Windows"; then
+            echo "🎉 SUCCESS: TRUE Windows PE executable created!"
+          else
+            echo "❌ FAILED: Not a Windows PE executable!"
+            echo "File type: $file_type"
+            exit 1
+          fi
         else
           echo "❌ Executable not found"
+          ls -la dist/ || echo "dist/ directory not found"
           exit 1
         fi
         
@@ -62,40 +84,46 @@ jobs:
       run: |
         echo "Creating build information file..."
         cat > dist/BUILD_INFO.txt << EOF
-        SCADA-IDS-KC Windows Build Information
-        =====================================
-        
+        SCADA-IDS-KC Windows PE Build Information
+        ========================================
+
         Build Date: $(date -u)
         Git Commit: ${{ github.sha }}
         Git Branch: ${{ github.ref_name }}
         Python Version: ${{ env.PYTHON_VERSION }}
-        Build Environment: GitHub Actions Ubuntu
-        
+        Build Environment: GitHub Actions Ubuntu 22.04 + Wine + Windows Python
+        Build Method: TRUE Windows PE cross-compilation (not fake Linux rename!)
+
         File Information:
         $(ls -lh dist/SCADA-IDS-KC.exe)
         $(file dist/SCADA-IDS-KC.exe)
-        
+
         Build Triggered By: ${{ github.event_name }}
         Actor: ${{ github.actor }}
+
+        Wine Version: $(wine --version 2>/dev/null || echo "N/A")
+        Windows Python: $(wine python.exe --version 2>/dev/null || echo "N/A")
         EOF
         
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: windows-executable-${{ github.sha }}
         path: |
           dist/SCADA-IDS-KC.exe
           dist/BUILD_INFO.txt
+          dist/*.zip
         retention-days: 30
         
     - name: Upload build logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: build-logs-${{ github.sha }}
         path: |
           logs/
           build/
+          build_report_*.txt
         retention-days: 7
         
     - name: Create release
@@ -105,6 +133,7 @@ jobs:
         files: |
           dist/SCADA-IDS-KC.exe
           dist/BUILD_INFO.txt
+          dist/*.zip
         name: SCADA-IDS-KC ${{ github.ref_name }}
         body: |
           ## SCADA-IDS-KC Windows Release
@@ -128,7 +157,8 @@ jobs:
           
           ### 📋 Build Information
           - Built with Python ${{ env.PYTHON_VERSION }}
-          - Cross-compiled from Linux using Wine
+          - TRUE Windows PE executable (Wine + Windows Python cross-compilation)
+          - Built on Ubuntu 22.04 with modern Wine 10.0+
           - Commit: ${{ github.sha }}
           - Build Date: $(date -u)
           
@@ -153,7 +183,7 @@ jobs:
     
     steps:
     - name: Download build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: windows-executable-${{ github.sha }}
         path: dist/
