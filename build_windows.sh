@@ -194,6 +194,34 @@ ensure_winetricks_deps() {
 # Ensure dependencies before any winetricks operations
 ensure_winetricks_deps
 
+# ---------- Headless Environment Support ---
+ensure_display_for_wine() {
+  if [[ -z "${DISPLAY:-}" ]]; then
+    log "[INFO] No DISPLAY found – starting Xvfb for headless Wine GUI support…" "$BLUE"
+
+    # Install xvfb if not present
+    if ! command -v Xvfb >/dev/null 2>&1; then
+      log "[INFO] Installing xvfb for virtual display…"
+      sudo apt-get update -qq
+      sudo apt-get install -y --no-install-recommends xvfb
+    fi
+
+    # Start virtual X server
+    log "[INFO] Starting virtual X server on :99…"
+    Xvfb :99 -screen 0 1024x768x24 &
+    export DISPLAY=:99
+
+    # Give it a moment to start
+    sleep 2
+    log "[INFO] ✅ Virtual X server started on DISPLAY=:99" "$GREEN"
+  else
+    log "[INFO] ✅ DISPLAY already set: $DISPLAY" "$GREEN"
+  fi
+}
+
+# Ensure display is available for Wine GUI operations
+ensure_display_for_wine
+
 # ---------- MSVC runtime / UCRT ------------
 install_msvc_runtime() {
   log "[INFO] Installing MSVC runtime with SHA256 bypass for CI compatibility…" "$BLUE"

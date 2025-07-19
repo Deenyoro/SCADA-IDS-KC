@@ -29,16 +29,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Winetricks dependencies
+    - name: Install Wine GUI and Winetricks dependencies
       run: |
-        echo "📦 Installing Winetricks extraction dependencies for CI..."
+        echo "📦 Installing Wine GUI helpers and Winetricks dependencies for CI..."
         sudo apt-get update -qq
         sudo apt-get install -y --no-install-recommends \
+          xvfb \
           cabextract \
           p7zip-full \
           unzip \
-          winbind
-        echo "✅ Winetricks dependencies installed"
+          winbind \
+          winbind:i386
+        echo "✅ Wine GUI and Winetricks dependencies installed"
+
+    - name: Start virtual X server for Wine GUI support
+      run: |
+        echo "🖥️ Starting virtual X server for headless Wine GUI support..."
+        Xvfb :99 -screen 0 1024x768x24 &
+        echo "DISPLAY=:99" >> $GITHUB_ENV
+        echo "✅ Virtual X server started on DISPLAY=:99"
 
     - name: Cache Wine and Python installer
       uses: actions/cache@v4
