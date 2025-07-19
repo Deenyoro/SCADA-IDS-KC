@@ -584,8 +584,23 @@ log_info "This will create a REAL Windows PE executable!"
 # Build with Windows PyInstaller using enhanced configuration
 log_info "Building Windows PE executable with enhanced PyInstaller configuration..."
 
-# First, test PyInstaller with a minimal example to ensure it works
-log_info "Testing PyInstaller functionality with minimal example..."
+# COMPREHENSIVE PYINSTALLER DIAGNOSTICS
+log_info "=== COMPREHENSIVE PYINSTALLER DIAGNOSTICS ==="
+
+# 1. Verify PyInstaller version and compatibility
+log_info "1. PyInstaller version and environment check..."
+wine python.exe -m pip show pyinstaller 2>&1 | tee "logs/pyinstaller_version.log"
+wine python.exe --version 2>&1 | tee -a "logs/pyinstaller_version.log"
+wine python.exe -m PyInstaller --version 2>&1 | tee -a "logs/pyinstaller_version.log"
+
+# 2. Directory snapshot BEFORE build
+log_info "2. Directory snapshot BEFORE build..."
+echo "=== BEFORE BUILD ===" > "logs/directory_snapshot.log"
+find . -maxdepth 3 -type f | sort >> "logs/directory_snapshot.log"
+echo "" >> "logs/directory_snapshot.log"
+
+# 3. Test PyInstaller with minimal example using FULL DEBUG
+log_info "3. Testing PyInstaller with minimal example (FULL DEBUG)..."
 cat > test_minimal.py << 'EOF'
 print("Hello from PyInstaller test!")
 import sys
@@ -593,19 +608,43 @@ print(f"Python version: {sys.version}")
 print("Test completed successfully")
 EOF
 
-if wine python.exe -m PyInstaller --onefile --name test_minimal test_minimal.py --distpath dist_test --workpath build_test 2>&1 | tee "logs/pyinstaller_test.log"; then
-    if [[ -f "dist_test/test_minimal.exe" ]]; then
-        log_info "OK PyInstaller test successful - basic functionality works"
-        rm -rf dist_test/ build_test/ test_minimal.py test_minimal.spec 2>/dev/null || true
+# Enable Wine debug output for missing DLLs
+export WINEDEBUG=err+all
+
+log_info "Running minimal test with --debug=all --log-level=DEBUG --onedir..."
+if wine python.exe -m PyInstaller test_minimal.py \
+    --onedir \
+    --name test_minimal \
+    --log-level=DEBUG \
+    --debug=all \
+    --noconfirm \
+    --clean \
+    --distpath dist_test \
+    --workpath build_test 2>&1 | tee "logs/pyinstaller_minimal_debug.log"; then
+
+    log_info "Minimal test completed, checking results..."
+    if [[ -f "dist_test/test_minimal/test_minimal.exe" ]]; then
+        log_info "✅ Minimal PyInstaller test successful"
+        log_info "Minimal executable size: $(stat -c%s "dist_test/test_minimal/test_minimal.exe" 2>/dev/null || echo "0") bytes"
     else
-        log_error "FAIL PyInstaller test failed - basic functionality broken"
-        log_error "Test output: $(cat logs/pyinstaller_test.log | tail -20)"
+        log_error "❌ Minimal test failed - no executable created"
+        log_error "Contents of dist_test/: $(ls -la dist_test/ 2>/dev/null || echo 'empty')"
+        log_error "Contents of build_test/: $(ls -la build_test/ 2>/dev/null || echo 'empty')"
+
+        # Check for warnings and missing modules
+        log_error "Checking for warnings and missing modules..."
+        grep -R "WARNING" build_test 2>/dev/null | head -20 | tee -a "logs/pyinstaller_minimal_debug.log" || echo "No warnings found"
+        grep -R "missing module named" build_test 2>/dev/null | sort | uniq | head | tee -a "logs/pyinstaller_minimal_debug.log" || echo "No missing modules found"
+
         exit 1
     fi
 else
-    log_error "FAIL PyInstaller test failed to run"
+    log_error "❌ Minimal PyInstaller test failed to run"
     exit 1
 fi
+
+# Clean up minimal test
+rm -rf dist_test/ build_test/ test_minimal.py test_minimal.spec 2>/dev/null || true
 
 # Test main application imports before building
 log_info "Testing main application imports in Windows Python..."
