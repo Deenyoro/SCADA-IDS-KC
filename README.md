@@ -1,4 +1,4 @@
-# SKADA-IDS-KC
+# SCADA-IDS-KC
 
 A Python-based Network Intrusion Detection System (IDS) with machine learning-based SYN flood detection.
 
@@ -33,8 +33,8 @@ A Python-based Network Intrusion Detection System (IDS) with machine learning-ba
 ## Architecture
 
 ```
-SKADA-IDS-KC/
-├── src/skada_ids/     # Core engine
+SCADA-IDS-KC/
+├── src/scada_ids/     # Core engine
 ├── src/ui/            # PyQt6 GUI
 ├── config/            # Configuration files
 ├── models/            # ML models
@@ -61,7 +61,7 @@ monitor session 1 source interface Gi0/1 both
 monitor session 1 destination interface Gi0/24
 ```
 
-Connect the SKADA-IDS-KC system to the destination port.
+Connect the SCADA-IDS-KC system to the destination port.
 
 ## License
 

@@ -1,5 +1,5 @@
 """
-Cross-platform compatibility tests for SKADA-IDS-KC.
+Cross-platform compatibility tests for SCADA-IDS-KC.
 """
 
 import pytest
@@ -23,7 +23,7 @@ class TestCrossPlatformCompatibility:
     
     def test_path_handling(self):
         """Test path handling across platforms."""
-        from skada_ids.settings import AppSettings
+        from scada_ids.settings import AppSettings
         
         settings = AppSettings()
         
@@ -48,7 +48,7 @@ class TestCrossPlatformCompatibility:
     @pytest.mark.skipif(platform.system() == 'Windows', reason="Unix-specific test")
     def test_unix_permissions(self):
         """Test Unix file permissions."""
-        from skada_ids.settings import AppSettings
+        from scada_ids.settings import AppSettings
         
         settings = AppSettings()
         
@@ -61,13 +61,13 @@ class TestCrossPlatformCompatibility:
     @pytest.mark.skipif(platform.system() != 'Windows', reason="Windows-specific test")
     def test_windows_paths(self):
         """Test Windows path handling."""
-        from skada_ids.settings import AppSettings
+        from scada_ids.settings import AppSettings
         
         settings = AppSettings()
         
         # Test Windows-style paths
         windows_paths = [
-            "C:\\Program Files\\SKADA-IDS-KC\\config\\default.yaml",
+            "C:\\Program Files\\SCADA-IDS-KC\\config\\default.yaml",
             "config\\default.yaml",
             "models\\syn_model.joblib"
         ]
@@ -81,10 +81,10 @@ class TestCrossPlatformCompatibility:
     
     def test_network_interface_detection(self):
         """Test network interface detection across platforms."""
-        from skada_ids.capture import PacketSniffer
+        from scada_ids.capture import PacketSniffer
         
-        with patch('skada_ids.capture.SCAPY_AVAILABLE', True), \
-             patch('skada_ids.capture.scapy') as mock_scapy:
+        with patch('scada_ids.capture.SCAPY_AVAILABLE', True), \
+             patch('scada_ids.capture.scapy') as mock_scapy:
             
             # Mock different interface naming conventions
             if platform.system() == 'Windows':
@@ -121,29 +121,29 @@ class TestCrossPlatformCompatibility:
     
     def test_notification_system_availability(self):
         """Test notification system availability across platforms."""
-        from skada_ids.notifier import NotificationManager
+        from scada_ids.notifier import NotificationManager
         
-        with patch('skada_ids.notifier.platform.system') as mock_platform:
+        with patch('scada_ids.notifier.platform.system') as mock_platform:
             # Test Windows
             mock_platform.return_value = 'Windows'
-            with patch('skada_ids.notifier.win10toast_available', True), \
-                 patch('skada_ids.notifier.plyer_available', True):
+            with patch('scada_ids.notifier.win10toast_available', True), \
+                 patch('scada_ids.notifier.plyer_available', True):
                 
                 notifier = NotificationManager()
                 assert notifier.is_available()
             
             # Test Linux
             mock_platform.return_value = 'Linux'
-            with patch('skada_ids.notifier.win10toast_available', False), \
-                 patch('skada_ids.notifier.plyer_available', True):
+            with patch('scada_ids.notifier.win10toast_available', False), \
+                 patch('scada_ids.notifier.plyer_available', True):
                 
                 notifier = NotificationManager()
                 assert notifier.is_available()
             
             # Test no notification system available
             mock_platform.return_value = 'Linux'
-            with patch('skada_ids.notifier.win10toast_available', False), \
-                 patch('skada_ids.notifier.plyer_available', False):
+            with patch('scada_ids.notifier.win10toast_available', False), \
+                 patch('scada_ids.notifier.plyer_available', False):
                 
                 notifier = NotificationManager()
                 assert not notifier.is_available()
@@ -151,7 +151,7 @@ class TestCrossPlatformCompatibility:
     def test_file_system_operations(self):
         """Test file system operations across platforms."""
         import tempfile
-        from skada_ids.settings import AppSettings
+        from scada_ids.settings import AppSettings
         
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -247,7 +247,7 @@ class TestCrossPlatformCompatibility:
         import os
         
         # Test setting and getting environment variables
-        test_var = "SKADA_TEST_VAR"
+        test_var = "SCADA_TEST_VAR"
         test_value = "test_value_123"
         
         # Set environment variable
@@ -258,10 +258,10 @@ class TestCrossPlatformCompatibility:
             assert os.environ.get(test_var) == test_value
             
             # Test with settings
-            from skada_ids.settings import AppSettings
+            from scada_ids.settings import AppSettings
             
             # Set a settings-related environment variable
-            os.environ["SKADA_APP_NAME"] = "Test App From Env"
+            os.environ["SCADA_APP_NAME"] = "Test App From Env"
             
             settings = AppSettings()
             # Note: This test assumes pydantic environment variable support
@@ -271,8 +271,8 @@ class TestCrossPlatformCompatibility:
             # Clean up
             if test_var in os.environ:
                 del os.environ[test_var]
-            if "SKADA_APP_NAME" in os.environ:
-                del os.environ["SKADA_APP_NAME"]
+            if "SCADA_APP_NAME" in os.environ:
+                del os.environ["SCADA_APP_NAME"]
     
     def test_logging_across_platforms(self):
         """Test logging functionality across platforms."""
@@ -318,10 +318,10 @@ class TestPlatformSpecificFeatures:
     @pytest.mark.skipif(platform.system() != 'Windows', reason="Windows-specific test")
     def test_windows_notifications(self):
         """Test Windows-specific notification features."""
-        from skada_ids.notifier import NotificationManager
+        from scada_ids.notifier import NotificationManager
         
-        with patch('skada_ids.notifier.win10toast_available', True), \
-             patch('skada_ids.notifier.ToastNotifier') as mock_toast:
+        with patch('scada_ids.notifier.win10toast_available', True), \
+             patch('scada_ids.notifier.ToastNotifier') as mock_toast:
             
             mock_notifier = Mock()
             mock_toast.return_value = mock_notifier
@@ -337,11 +337,11 @@ class TestPlatformSpecificFeatures:
     @pytest.mark.skipif(platform.system() == 'Windows', reason="Unix-specific test")
     def test_unix_notifications(self):
         """Test Unix-specific notification features."""
-        from skada_ids.notifier import NotificationManager
+        from scada_ids.notifier import NotificationManager
         
-        with patch('skada_ids.notifier.win10toast_available', False), \
-             patch('skada_ids.notifier.plyer_available', True), \
-             patch('skada_ids.notifier.plyer_notification') as mock_plyer:
+        with patch('scada_ids.notifier.win10toast_available', False), \
+             patch('scada_ids.notifier.plyer_available', True), \
+             patch('scada_ids.notifier.plyer_notification') as mock_plyer:
             
             notifier = NotificationManager()
             
@@ -370,7 +370,7 @@ class TestPlatformSpecificFeatures:
     
     def test_memory_usage_monitoring(self):
         """Test memory usage monitoring across platforms."""
-        from skada_ids.performance import MemoryOptimizer
+        from scada_ids.performance import MemoryOptimizer
         
         # Test memory info retrieval
         memory_info = MemoryOptimizer.get_memory_info()

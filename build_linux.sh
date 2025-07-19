@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SKADA-IDS-KC Linux Build Script
+# SCADA-IDS-KC Linux Build Script
 # Bash script for building the application on Linux
 
 set -e  # Exit on any error
@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo -e "${GREEN}=== SKADA-IDS-KC Linux Build Script ===${NC}"
+echo -e "${GREEN}=== SCADA-IDS-KC Linux Build Script ===${NC}"
 echo -e "${YELLOW}Build mode: $(if [ "$OFFLINE" = true ]; then echo 'Offline'; else echo 'Online'; fi)${NC}"
 
 # Get script directory
@@ -132,10 +132,10 @@ fi
 
 # Build executable with PyInstaller
 echo -e "${YELLOW}Building executable with PyInstaller...${NC}"
-pyinstaller packaging/skada.spec --noconfirm --clean
+pyinstaller packaging/scada.spec --noconfirm --clean
 
 # Verify build
-EXE_PATH="dist/SKADA-IDS-KC"
+EXE_PATH="dist/SCADA-IDS-KC"
 if [ -f "$EXE_PATH" ]; then
     FILE_SIZE=$(du -h "$EXE_PATH" | cut -f1)
     echo -e "${GREEN}Build completed successfully!${NC}"
@@ -153,21 +153,21 @@ fi
 # Create desktop entry (optional)
 if command -v desktop-file-install &> /dev/null; then
     echo -e "${YELLOW}Creating desktop entry...${NC}"
-    cat > skada-ids-kc.desktop << EOF
+    cat > scada-ids-kc.desktop << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=SKADA-IDS-KC
+Name=SCADA-IDS-KC
 Comment=Network Intrusion Detection System
-Exec=$SCRIPT_DIR/dist/SKADA-IDS-KC
+Exec=$SCRIPT_DIR/dist/SCADA-IDS-KC
 Icon=security
 Terminal=false
 Categories=Network;Security;
 EOF
     
     # Install desktop entry
-    desktop-file-install --dir="$HOME/.local/share/applications" skada-ids-kc.desktop
-    rm skada-ids-kc.desktop
+    desktop-file-install --dir="$HOME/.local/share/applications" scada-ids-kc.desktop
+    rm scada-ids-kc.desktop
     echo -e "${GREEN}Desktop entry created${NC}"
 fi
 
@@ -178,24 +178,24 @@ if command -v appimagetool &> /dev/null; then
     cp "$EXE_PATH" AppDir/usr/bin/
     
     # Create AppImage desktop file
-    cat > AppDir/skada-ids-kc.desktop << EOF
+    cat > AppDir/scada-ids-kc.desktop << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=SKADA-IDS-KC
+Name=SCADA-IDS-KC
 Comment=Network Intrusion Detection System
-Exec=SKADA-IDS-KC
+Exec=SCADA-IDS-KC
 Icon=security
 Terminal=false
 Categories=Network;Security;
 EOF
     
     # Create AppImage
-    appimagetool AppDir SKADA-IDS-KC.AppImage
+    appimagetool AppDir SCADA-IDS-KC.AppImage
     rm -rf AppDir
-    echo -e "${GREEN}AppImage created: SKADA-IDS-KC.AppImage${NC}"
+    echo -e "${GREEN}AppImage created: SCADA-IDS-KC.AppImage${NC}"
 fi
 
 echo -e "${GREEN}=== Build Complete ===${NC}"
-echo -e "${YELLOW}Run the application: ./dist/SKADA-IDS-KC${NC}"
+echo -e "${YELLOW}Run the application: ./dist/SCADA-IDS-KC${NC}"
 echo -e "${YELLOW}Note: Root privileges may be required for packet capture${NC}"

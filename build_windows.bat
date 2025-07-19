@@ -1,10 +1,10 @@
 @echo off
-REM SKADA-IDS-KC Windows Build Batch Script
+REM SCADA-IDS-KC Windows Build Batch Script
 REM Simple wrapper for PowerShell build script
 
 setlocal enabledelayedexpansion
 
-echo === SKADA-IDS-KC Windows Build ===
+echo === SCADA-IDS-KC Windows Build ===
 echo.
 
 REM Check if PowerShell is available
@@ -87,8 +87,8 @@ echo.
 if %BUILD_RESULT%==0 (
     echo Build completed successfully!
     echo.
-    if exist "dist\SKADA-IDS-KC.exe" (
-        echo You can now run: dist\SKADA-IDS-KC.exe
+    if exist "dist\SCADA-IDS-KC.exe" (
+        echo You can now run: dist\SCADA-IDS-KC.exe
     )
 ) else (
     echo Build failed with error code %BUILD_RESULT%

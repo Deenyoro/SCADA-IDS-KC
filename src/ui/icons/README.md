@@ -1,6 +1,6 @@
 # Icons Directory
 
-This directory contains icon files for the SKADA-IDS-KC application.
+This directory contains icon files for the SCADA-IDS-KC application.
 
 ## Required Files
 

@@ -1,4 +1,4 @@
-# SKADA-IDS-KC Windows Dependencies Setup Script
+# SCADA-IDS-KC Windows Dependencies Setup Script
 # Downloads and installs all required dependencies for Windows build
 
 param(
@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== SKADA-IDS-KC Windows Dependencies Setup ===" -ForegroundColor Green
+Write-Host "=== SCADA-IDS-KC Windows Dependencies Setup ===" -ForegroundColor Green
 
 # Create directories
 $dirs = @("installers", "requirements.offline", "logs")
@@ -127,7 +127,7 @@ $downloadWheelsScript | Out-File -FilePath "download_wheels.py" -Encoding UTF8
 # Create complete Windows setup script
 Write-Host "Creating complete Windows setup script..." -ForegroundColor Yellow
 $setupScript = @"
-# Complete Windows Setup for SKADA-IDS-KC
+# Complete Windows Setup for SCADA-IDS-KC
 # Run this script as Administrator for best results
 
 param(
@@ -136,7 +136,7 @@ param(
     [switch]`$SkipVCRedist = `$false
 )
 
-Write-Host "=== Complete Windows Setup for SKADA-IDS-KC ===" -ForegroundColor Green
+Write-Host "=== Complete Windows Setup for SCADA-IDS-KC ===" -ForegroundColor Green
 
 # Install Python
 if (-not `$SkipPython -and (Test-Path "installers\python-$PythonVersion-amd64.exe")) {

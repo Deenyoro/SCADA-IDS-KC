@@ -5,7 +5,7 @@ Tests for configuration validation and security checks.
 import pytest
 from unittest.mock import patch
 
-from skada_ids.config_validator import ConfigurationValidator
+from scada_ids.config_validator import ConfigurationValidator
 
 
 class TestConfigurationValidator:
@@ -20,7 +20,7 @@ class TestConfigurationValidator:
     def test_valid_configuration(self):
         """Test validation of valid configuration."""
         config = {
-            'app_name': 'SKADA-IDS-KC',
+            'app_name': 'SCADA-IDS-KC',
             'version': '1.0.0',
             'debug_mode': False,
             'network': {
@@ -44,7 +44,7 @@ class TestConfigurationValidator:
             'logging': {
                 'log_level': 'INFO',
                 'log_dir': 'logs',
-                'log_file': 'skada.log',
+                'log_file': 'scada.log',
                 'max_log_size': 2097152,
                 'backup_count': 7
             }
@@ -133,7 +133,7 @@ class TestConfigurationValidator:
         # Valid paths
         assert validator._validate_file_path('models/syn_model.joblib')
         assert validator._validate_file_path('logs/app.log')
-        assert validator._validate_file_path('/opt/skada/models/model.joblib')
+        assert validator._validate_file_path('/opt/scada/models/model.joblib')
         
         # Invalid paths
         assert not validator._validate_file_path('../../../etc/passwd')

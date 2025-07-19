@@ -55,7 +55,7 @@ class TestMainWindow:
             
             # Mock settings
             mock_settings = Mock()
-            mock_settings.app_name = "SKADA-IDS-KC-Test"
+            mock_settings.app_name = "SCADA-IDS-KC-Test"
             mock_settings.version = "1.0.0-test"
             mock_settings.get_resource_path.return_value = Path("test_icon.ico")
             mock_get_settings.return_value = mock_settings
@@ -66,7 +66,7 @@ class TestMainWindow:
     
     def test_window_initialization(self, main_window):
         """Test that main window initializes correctly."""
-        assert main_window.windowTitle() == "SKADA-IDS-KC-Test v1.0.0-test"
+        assert main_window.windowTitle() == "SCADA-IDS-KC-Test v1.0.0-test"
         assert main_window.isVisible() is False  # Not shown by default
         assert main_window.is_monitoring is False
     

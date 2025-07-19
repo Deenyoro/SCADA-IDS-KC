@@ -17,10 +17,10 @@ sys.path.insert(0, str(project_root / 'src'))
 
 # Import our modules
 try:
-    from skada_ids.settings import get_settings, reload_settings
-    from skada_ids.controller import get_controller
-    from skada_ids.ml import get_detector
-    from skada_ids.notifier import get_notifier
+    from scada_ids.settings import get_settings, reload_settings
+    from scada_ids.controller import get_controller
+    from scada_ids.ml import get_detector
+    from scada_ids.notifier import get_notifier
 except ImportError as e:
     print(f"Error importing SCADA-IDS modules: {e}")
     print("Make sure you're running from the project root directory")
@@ -54,7 +54,7 @@ def setup_logging(log_level: str = "INFO", log_file: str = None):
         format=log_format,
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler(log_dir / "skada.log")
+            logging.FileHandler(log_dir / "scada.log")
         ]
     )
 
@@ -104,7 +104,7 @@ def run_gui_mode():
         app = QApplication(sys.argv)
         app.setApplicationName("SCADA-IDS-KC")
         app.setApplicationVersion("1.0.0")
-        app.setOrganizationName("SKADA Security")
+        app.setOrganizationName("SCADA Security")
         
         # Create and show main window
         window = MainWindow()
@@ -120,7 +120,7 @@ def run_gui_mode():
 
 def run_cli_mode(args):
     """Run the application in CLI mode."""
-    logger = logging.getLogger("skada_ids.main")
+    logger = logging.getLogger("scada_ids.main")
     
     try:
         # Get controller
@@ -180,7 +180,7 @@ def print_system_status(status):
 
 def test_ml_models():
     """Test ML model loading and prediction."""
-    logger = logging.getLogger("skada_ids.main")
+    logger = logging.getLogger("scada_ids.main")
     
     try:
         print("Testing ML models...")
@@ -267,7 +267,7 @@ def test_notifications():
 
 def run_monitoring_cli(controller, args):
     """Run monitoring in CLI mode."""
-    logger = logging.getLogger("skada_ids.main")
+    logger = logging.getLogger("scada_ids.main")
     
     try:
         interface = args.interface
@@ -373,7 +373,7 @@ Examples:
     
     # Setup logging
     setup_logging(args.log_level)
-    logger = logging.getLogger("skada_ids.main")
+    logger = logging.getLogger("scada_ids.main")
     
     try:
         # Load configuration

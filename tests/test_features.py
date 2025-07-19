@@ -6,7 +6,7 @@ import pytest
 import time
 from unittest.mock import patch
 
-from skada_ids.features import SlidingWindowCounter, FeatureExtractor
+from scada_ids.features import SlidingWindowCounter, FeatureExtractor
 
 
 class TestSlidingWindowCounter:
@@ -60,13 +60,13 @@ class TestFeatureExtractor:
     
     def test_initialization(self, mock_settings):
         """Test feature extractor initialization."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings):
+        with patch('scada_ids.features.get_settings', return_value=mock_settings):
             extractor = FeatureExtractor()
             assert extractor.window_seconds == mock_settings.detection.window_seconds
     
     def test_extract_features_basic(self, mock_settings, mock_packet_info):
         """Test basic feature extraction."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings):
+        with patch('scada_ids.features.get_settings', return_value=mock_settings):
             extractor = FeatureExtractor()
             features = extractor.extract_features(mock_packet_info)
             
@@ -78,7 +78,7 @@ class TestFeatureExtractor:
     
     def test_extract_features_syn_packet(self, mock_settings, mock_packet_info):
         """Test feature extraction for SYN packet."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings):
+        with patch('scada_ids.features.get_settings', return_value=mock_settings):
             extractor = FeatureExtractor()
             
             # Ensure packet has SYN flag
@@ -91,7 +91,7 @@ class TestFeatureExtractor:
     
     def test_extract_features_multiple_packets(self, mock_settings, mock_packet_info):
         """Test feature extraction with multiple packets."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings):
+        with patch('scada_ids.features.get_settings', return_value=mock_settings):
             extractor = FeatureExtractor()
             
             # Process multiple packets
@@ -107,7 +107,7 @@ class TestFeatureExtractor:
     
     def test_feature_names_consistency(self, mock_settings):
         """Test that feature names are consistent."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings):
+        with patch('scada_ids.features.get_settings', return_value=mock_settings):
             extractor = FeatureExtractor()
             feature_names = extractor.get_feature_names()
             
@@ -123,7 +123,7 @@ class TestFeatureExtractor:
     
     def test_reset_counters(self, mock_settings):
         """Test counter reset functionality."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings):
+        with patch('scada_ids.features.get_settings', return_value=mock_settings):
             extractor = FeatureExtractor()
             
             # Add some data
@@ -148,7 +148,7 @@ class TestFeatureExtractor:
     
     def test_port_diversity_tracking(self, mock_settings):
         """Test port diversity feature tracking."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings):
+        with patch('scada_ids.features.get_settings', return_value=mock_settings):
             extractor = FeatureExtractor()
             
             src_ip = '192.168.1.100'
@@ -173,7 +173,7 @@ class TestFeatureExtractor:
     
     def test_flag_analysis(self, mock_settings):
         """Test TCP flag analysis."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings):
+        with patch('scada_ids.features.get_settings', return_value=mock_settings):
             extractor = FeatureExtractor()
             
             # Test different flag combinations

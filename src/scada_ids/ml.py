@@ -602,7 +602,7 @@ class MLDetector:
                 
                 # Security check for output directory
                 if model_dir_path.is_absolute():
-                    if not str(model_dir_path).startswith(('/opt/skada', '/home', '/tmp')):
+                    if not str(model_dir_path).startswith(('/opt/scada', '/home', '/tmp')):
                         logger.error(f"Refusing to save to potentially unsafe location: {model_dir}")
                         return False
                 

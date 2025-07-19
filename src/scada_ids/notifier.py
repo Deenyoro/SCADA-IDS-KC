@@ -182,7 +182,7 @@ class NotificationManager:
         Returns:
             True if notification was sent successfully, False otherwise
         """
-        title = f"SKADA-IDS-KC {alert_type}"
+        title = f"SCADA-IDS-KC {alert_type}"
         
         # Get icon path if available
         icon_path = None
@@ -200,7 +200,7 @@ class NotificationManager:
         Returns:
             True if test notification was sent successfully, False otherwise
         """
-        title = "SKADA-IDS-KC Test"
+        title = "SCADA-IDS-KC Test"
         message = "Notification system is working correctly!"
         
         return self.send_notification(title, message)

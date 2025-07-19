@@ -1,12 +1,12 @@
-# SKADA-IDS-KC User Guide
+# SCADA-IDS-KC User Guide
 
 ## Getting Started
 
 ### First Launch
 
 1. **Start the Application**
-   - Windows: Double-click `SKADA-IDS-KC.exe` or use Start Menu shortcut
-   - Linux: Run `sudo ./SKADA-IDS-KC` from terminal
+   - Windows: Double-click `SCADA-IDS-KC.exe` or use Start Menu shortcut
+   - Linux: Run `sudo ./SCADA-IDS-KC` from terminal
    - Ensure you have administrator/root privileges
 
 2. **Interface Selection**
@@ -221,8 +221,8 @@ logging:
 ```
 
 #### Log Locations
-- **Main Log**: `logs/skada.log`
-- **Error Log**: `logs/skada_errors.log`
+- **Main Log**: `logs/scada.log`
+- **Error Log**: `logs/scada_errors.log`
 - **Rotation**: Logs rotate at 2MB, keeping 7 backups
 
 ### Performance Monitoring
@@ -251,12 +251,12 @@ Replace default models with trained versions:
 Override configuration with environment variables:
 ```bash
 # Windows
-set SKADA_DETECTION__PROB_THRESHOLD=0.8
-set SKADA_NETWORK__INTERFACE=eth0
+set SCADA_DETECTION__PROB_THRESHOLD=0.8
+set SCADA_NETWORK__INTERFACE=eth0
 
 # Linux
-export SKADA_DETECTION__PROB_THRESHOLD=0.8
-export SKADA_NETWORK__INTERFACE=eth0
+export SCADA_DETECTION__PROB_THRESHOLD=0.8
+export SCADA_NETWORK__INTERFACE=eth0
 ```
 
 ### Command Line Options

@@ -18,7 +18,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Configuration
 PYTHON_VERSION="3.11.9"
 PYTHON_URL="https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe"
-WINEPREFIX="$HOME/.wine_skada"
+WINEPREFIX="$HOME/.wine_scada"
 
 echo -e "${GREEN}Setting up Windows Python in Wine for cross-compilation${NC}"
 echo "Python version: $PYTHON_VERSION"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Development environment setup script for SKADA-IDS-KC
+Development environment setup script for SCADA-IDS-KC
 """
 
 import os
@@ -150,9 +150,9 @@ import sys
 sys.path.insert(0, 'src')
 
 try:
-    from skada_ids.settings import AppSettings
-    from skada_ids.ml import MLDetector
-    from skada_ids.features import FeatureExtractor
+    from scada_ids.settings import AppSettings
+    from scada_ids.ml import MLDetector
+    from scada_ids.features import FeatureExtractor
     print("✓ Core modules import successfully")
 except ImportError as e:
     print(f"✗ Import error: {e}")
@@ -195,7 +195,7 @@ except ImportError:
 
 def main():
     """Main setup function."""
-    print("🚀 SKADA-IDS-KC Development Environment Setup")
+    print("🚀 SCADA-IDS-KC Development Environment Setup")
     print("=" * 50)
     
     # Change to project directory

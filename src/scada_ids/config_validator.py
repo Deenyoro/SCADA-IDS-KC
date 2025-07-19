@@ -1,5 +1,5 @@
 """
-Configuration validation and security checks for SKADA-IDS-KC.
+Configuration validation and security checks for SCADA-IDS-KC.
 """
 
 import logging
@@ -227,7 +227,7 @@ class ConfigurationValidator:
         
         # Check for absolute paths outside allowed directories
         if os.path.isabs(normalized):
-            allowed_prefixes = ['/opt/skada', '/home', '/tmp', '/var/log']
+            allowed_prefixes = ['/opt/scada', '/home', '/tmp', '/var/log']
             if not any(normalized.startswith(prefix) for prefix in allowed_prefixes):
                 return False
         

@@ -1,5 +1,5 @@
 """
-Performance monitoring and optimization utilities for SKADA-IDS-KC.
+Performance monitoring and optimization utilities for SCADA-IDS-KC.
 """
 
 import logging

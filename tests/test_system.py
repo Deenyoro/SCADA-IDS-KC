@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple system test for SKADA-IDS-KC components.
+Simple system test for SCADA-IDS-KC components.
 Tests core functionality without requiring network capture.
 """
 
@@ -17,22 +17,22 @@ def test_imports():
     print("🧪 Testing module imports...")
     
     try:
-        from skada_ids.settings import get_settings
+        from scada_ids.settings import get_settings
         print("  ✅ Settings module imported")
         
-        from skada_ids.capture import PacketSniffer
+        from scada_ids.capture import PacketSniffer
         print("  ✅ Capture module imported")
         
-        from skada_ids.features import FeatureExtractor
+        from scada_ids.features import FeatureExtractor
         print("  ✅ Features module imported")
         
-        from skada_ids.ml import get_detector
+        from scada_ids.ml import get_detector
         print("  ✅ ML module imported")
         
-        from skada_ids.notifier import get_notifier
+        from scada_ids.notifier import get_notifier
         print("  ✅ Notifier module imported")
         
-        from skada_ids.controller import get_controller
+        from scada_ids.controller import get_controller
         print("  ✅ Controller module imported")
         
         return True
@@ -47,7 +47,7 @@ def test_settings():
     print("\n🧪 Testing settings...")
     
     try:
-        from skada_ids.settings import get_settings
+        from scada_ids.settings import get_settings
         
         settings = get_settings()
         print(f"  ✅ Settings loaded: {settings.app_name} v{settings.version}")
@@ -66,7 +66,7 @@ def test_ml_models():
     print("\n🧪 Testing ML models...")
     
     try:
-        from skada_ids.ml import get_detector
+        from scada_ids.ml import get_detector
         
         detector = get_detector()
         
@@ -117,7 +117,7 @@ def test_feature_extraction():
     print("\n🧪 Testing feature extraction...")
     
     try:
-        from skada_ids.features import FeatureExtractor
+        from scada_ids.features import FeatureExtractor
         
         extractor = FeatureExtractor()
         
@@ -149,7 +149,7 @@ def test_notifications():
     print("\n🧪 Testing notifications...")
     
     try:
-        from skada_ids.notifier import get_notifier
+        from scada_ids.notifier import get_notifier
         
         notifier = get_notifier()
         info = notifier.get_notification_info()
@@ -172,7 +172,7 @@ def test_controller():
     print("\n🧪 Testing controller...")
     
     try:
-        from skada_ids.controller import get_controller
+        from scada_ids.controller import get_controller
         
         controller = get_controller()
         status = controller.get_status()
@@ -209,7 +209,7 @@ def test_gui_imports():
 
 def main():
     """Run all system tests."""
-    print("🚀 SKADA-IDS-KC System Test")
+    print("🚀 SCADA-IDS-KC System Test")
     print("=" * 40)
     
     tests = [

@@ -1,8 +1,8 @@
-# SKADA-IDS-KC Architecture
+# SCADA-IDS-KC Architecture
 
 ## Overview
 
-SKADA-IDS-KC is a Python-based Network Intrusion Detection System designed to detect SYN flood attacks using machine learning. The system follows a modular architecture with clear separation of concerns.
+SCADA-IDS-KC is a Python-based Network Intrusion Detection System designed to detect SYN flood attacks using machine learning. The system follows a modular architecture with clear separation of concerns.
 
 ## System Architecture
 
@@ -130,7 +130,7 @@ Settings are managed hierarchically:
 
 1. **Default Values**: Hard-coded defaults in Pydantic models
 2. **YAML Configuration**: `config/default.yaml`
-3. **Environment Variables**: `SKADA_*` prefixed variables
+3. **Environment Variables**: `SCADA_*` prefixed variables
 4. **Runtime Changes**: Programmatic updates
 
 ## Security Considerations

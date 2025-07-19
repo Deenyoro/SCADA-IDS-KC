@@ -1,6 +1,6 @@
-# SKADA-IDS-KC Default Configuration
+# SCADA-IDS-KC Default Configuration
 
-app_name: "SKADA-IDS-KC"
+app_name: "SCADA-IDS-KC"
 version: "1.0.0"
 debug_mode: false
 
@@ -29,13 +29,13 @@ notifications:
 logging:
   log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
   log_dir: "logs"
-  log_file: "skada.log"
+  log_file: "scada.log"
   max_log_size: 2097152  # 2MB in bytes
   backup_count: 7
 
 # GUI Settings
 gui:
-  window_title: "SKADA-IDS-KC - Network Intrusion Detection"
+  window_title: "SCADA-IDS-KC - Network Intrusion Detection"
   default_window_size: [1024, 768]  # width, height
   enable_system_tray: true
   minimize_to_tray: true

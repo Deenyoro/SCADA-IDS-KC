@@ -1,0 +1,137 @@
+# Multi-stage Dockerfile for cross-compiling Windows executables from Linux
+# This creates a reliable environment for building Windows PE executables using Wine
+
+FROM ubuntu:22.04 as wine-base
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WINEDEBUG=-all
+ENV WINEPREFIX=/opt/wine-python
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    gnupg2 \
+    software-properties-common \
+    apt-transport-https \
+    ca-certificates \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add Wine repository and install Wine
+RUN dpkg --add-architecture i386 \
+    && mkdir -pm755 /etc/apt/keyrings \
+    && wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key \
+    && wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources \
+    && apt-get update \
+    && apt-get install -y --install-recommends winehq-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python build dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    build-essential \
+    git \
+    zip \
+    unzip \
+    file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create wine user and setup Wine prefix
+RUN useradd -m -s /bin/bash wineuser \
+    && mkdir -p /opt/wine-python \
+    && chown -R wineuser:wineuser /opt/wine-python
+
+USER wineuser
+WORKDIR /home/wineuser
+
+# Initialize Wine with Windows 10 compatibility
+RUN xvfb-run -a wine winecfg /v win10
+
+# Download and install Windows Python
+ARG PYTHON_VERSION=3.11.9
+RUN wget -O python-installer.exe "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" \
+    && xvfb-run -a wine python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 \
+    && rm python-installer.exe
+
+# Verify Python installation and install PyInstaller
+RUN xvfb-run -a wine python.exe --version \
+    && xvfb-run -a wine python.exe -m pip install --upgrade pip \
+    && xvfb-run -a wine python.exe -m pip install pyinstaller==6.6.0
+
+# Create build stage
+FROM wine-base as builder
+
+# Copy project files
+COPY --chown=wineuser:wineuser . /home/wineuser/project
+WORKDIR /home/wineuser/project
+
+# Install Python dependencies in Wine Python
+RUN xvfb-run -a wine python.exe -m pip install -r requirements.txt
+
+# Final stage for clean output
+FROM wine-base as final
+
+COPY --from=builder /home/wineuser/project /home/wineuser/project
+
+WORKDIR /home/wineuser/project
+
+# Create build script
+RUN cat > /home/wineuser/build.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+echo "🚀 Starting Windows cross-compilation build..."
+
+# Set environment
+export WINEDEBUG=-all
+export WINEPREFIX=/opt/wine-python
+
+# Build with PyInstaller using Wine Python
+echo "📦 Building Windows executable with PyInstaller..."
+xvfb-run -a wine python.exe -m PyInstaller \
+    packaging/scada_windows.spec \
+    --noconfirm \
+    --clean \
+    --log-level INFO \
+    --distpath dist \
+    --workpath build
+
+# Verify the build
+if [ -f "dist/SCADA-IDS-KC.exe" ]; then
+    echo "✅ Build successful!"
+    file_size=$(ls -lh dist/SCADA-IDS-KC.exe | awk '{print $5}')
+    echo "📊 Executable size: $file_size"
+    
+    # Check file type
+    file_type=$(file dist/SCADA-IDS-KC.exe)
+    echo "📋 File type: $file_type"
+    
+    if [[ "$file_type" == *"PE32"* ]] || [[ "$file_type" == *"MS Windows"* ]]; then
+        echo "🎉 Successfully created Windows PE executable!"
+    else
+        echo "⚠️  Warning: File may not be a proper Windows executable"
+    fi
+    
+    # Test with Wine
+    echo "🧪 Testing executable with Wine..."
+    if timeout 30 xvfb-run -a wine dist/SCADA-IDS-KC.exe --version; then
+        echo "✅ Wine test passed!"
+    else
+        echo "⚠️  Wine test failed or timed out"
+    fi
+else
+    echo "❌ Build failed - executable not found"
+    exit 1
+fi
+
+echo "🎉 Windows cross-compilation completed successfully!"
+EOF
+
+RUN chmod +x /home/wineuser/build.sh
+
+# Default command
+CMD ["/home/wineuser/build.sh"]

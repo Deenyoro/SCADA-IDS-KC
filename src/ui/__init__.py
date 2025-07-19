@@ -1,3 +1,3 @@
 """
-SKADA-IDS-KC GUI Components
+SCADA-IDS-KC GUI Components
 """

@@ -20,8 +20,8 @@ from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap
 
 # Import our IDS components
 sys.path.append(str(Path(__file__).parent.parent))
-from skada_ids.controller import get_controller
-from skada_ids.settings import get_settings
+from scada_ids.controller import get_controller
+from scada_ids.settings import get_settings
 
 
 logger = logging.getLogger(__name__)

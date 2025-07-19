@@ -1,5 +1,5 @@
 """
-Security utilities and hardening measures for SKADA-IDS-KC.
+Security utilities and hardening measures for SCADA-IDS-KC.
 """
 
 import logging
@@ -41,8 +41,8 @@ class SecurityManager:
             # Check if file is within allowed directories
             allowed_dirs = [
                 Path.cwd(),
-                Path.home() / '.skada-ids-kc',
-                Path('/opt/skada-ids-kc') if sys.platform != 'win32' else Path('C:/Program Files/SKADA-IDS-KC'),
+                Path.home() / '.scada-ids-kc',
+                Path('/opt/scada-ids-kc') if sys.platform != 'win32' else Path('C:/Program Files/SCADA-IDS-KC'),
                 Path('/tmp') if sys.platform != 'win32' else Path(os.environ.get('TEMP', 'C:/temp'))
             ]
             

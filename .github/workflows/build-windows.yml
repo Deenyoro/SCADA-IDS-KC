@@ -1,0 +1,192 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      python_version:
+        description: 'Python version to use'
+        required: false
+        default: '3.11.9'
+      create_release:
+        description: 'Create GitHub release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: ${{ github.event.inputs.python_version || '3.11.9' }}
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+          
+    - name: Build Windows executable with Docker
+      run: |
+        echo "🚀 Building Windows executable using Docker cross-compilation..."
+        ./build_docker.sh --clean --test --python-version "${{ env.PYTHON_VERSION }}"
+        
+    - name: Verify build output
+      run: |
+        echo "📋 Verifying build output..."
+        if [ -f "dist/SCADA-IDS-KC.exe" ]; then
+          echo "✅ Executable found"
+          ls -lh dist/SCADA-IDS-KC.exe
+          file dist/SCADA-IDS-KC.exe
+          echo "📊 File size: $(ls -lh dist/SCADA-IDS-KC.exe | awk '{print $5}')"
+        else
+          echo "❌ Executable not found"
+          exit 1
+        fi
+        
+    - name: Create build info
+      run: |
+        echo "Creating build information file..."
+        cat > dist/BUILD_INFO.txt << EOF
+        SCADA-IDS-KC Windows Build Information
+        =====================================
+        
+        Build Date: $(date -u)
+        Git Commit: ${{ github.sha }}
+        Git Branch: ${{ github.ref_name }}
+        Python Version: ${{ env.PYTHON_VERSION }}
+        Build Environment: GitHub Actions Ubuntu
+        
+        File Information:
+        $(ls -lh dist/SCADA-IDS-KC.exe)
+        $(file dist/SCADA-IDS-KC.exe)
+        
+        Build Triggered By: ${{ github.event_name }}
+        Actor: ${{ github.actor }}
+        EOF
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: windows-executable-${{ github.sha }}
+        path: |
+          dist/SCADA-IDS-KC.exe
+          dist/BUILD_INFO.txt
+        retention-days: 30
+        
+    - name: Upload build logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-logs-${{ github.sha }}
+        path: |
+          logs/
+          build/
+        retention-days: 7
+        
+    - name: Create release
+      if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/SCADA-IDS-KC.exe
+          dist/BUILD_INFO.txt
+        name: SCADA-IDS-KC ${{ github.ref_name }}
+        body: |
+          ## SCADA-IDS-KC Windows Release
+          
+          ### 🚀 Features
+          - Network Intrusion Detection System
+          - Machine Learning-based SYN flood detection
+          - Cross-platform GUI with PyQt6
+          - Real-time packet capture with Scapy
+          - System notifications
+          
+          ### 📦 Installation
+          1. Download `SCADA-IDS-KC.exe`
+          2. Install [Npcap](https://npcap.com/) for packet capture
+          3. Run the executable
+          
+          ### 🧪 System Requirements
+          - Windows 10/11 (64-bit)
+          - Administrator privileges (for packet capture)
+          - Npcap driver
+          
+          ### 📋 Build Information
+          - Built with Python ${{ env.PYTHON_VERSION }}
+          - Cross-compiled from Linux using Wine
+          - Commit: ${{ github.sha }}
+          - Build Date: $(date -u)
+          
+          ### 🔧 Usage
+          ```cmd
+          # GUI Mode
+          SCADA-IDS-KC.exe
+          
+          # CLI Mode
+          SCADA-IDS-KC.exe --cli --status
+          SCADA-IDS-KC.exe --help
+          ```
+        draft: false
+        prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-windows:
+    runs-on: windows-latest
+    needs: build-windows
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: windows-executable-${{ github.sha }}
+        path: dist/
+        
+    - name: Test Windows executable
+      run: |
+        echo "🧪 Testing Windows executable on native Windows..."
+        
+        # Check if executable exists
+        if (Test-Path "dist/SCADA-IDS-KC.exe") {
+          Write-Host "✅ Executable found"
+          Get-ChildItem "dist/SCADA-IDS-KC.exe" | Format-List
+        } else {
+          Write-Host "❌ Executable not found"
+          exit 1
+        }
+        
+        # Test version command (should work without admin privileges)
+        Write-Host "🚀 Testing version command..."
+        try {
+          $output = & "dist/SCADA-IDS-KC.exe" --version 2>&1
+          Write-Host "✅ Version command successful: $output"
+        } catch {
+          Write-Host "⚠️ Version command failed: $_"
+        }
+        
+        # Test help command
+        Write-Host "📖 Testing help command..."
+        try {
+          $output = & "dist/SCADA-IDS-KC.exe" --help 2>&1
+          Write-Host "✅ Help command successful"
+        } catch {
+          Write-Host "⚠️ Help command failed: $_"
+        }
+        
+        Write-Host "🎉 Windows testing completed"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# SKADA-IDS-KC Windows Build Script for WSL/Linux
+# SCADA-IDS-KC Windows Build Script for WSL/Linux
 # Cross-compile Windows executable from Linux environment
 # ULTRA PERFECT BUILD SCRIPT - DO IT RIGHT, DO IT NOW!
 
@@ -33,7 +33,7 @@ VERBOSE=false
 
 show_help() {
     cat << EOF
-🚀 SKADA-IDS-KC Windows Build Script for WSL/Linux
+🚀 SCADA-IDS-KC Windows Build Script for WSL/Linux
 
 Usage: $0 [OPTIONS]
 
@@ -57,7 +57,7 @@ REQUIREMENTS:
     - All dependencies from requirements.txt
 
 OUTPUT:
-    - dist/SKADA-IDS-KC.exe    # Windows executable
+    - dist/SCADA-IDS-KC.exe    # Windows executable
     - dist/*.zip               # Installation package (if requested)
 
 EOF
@@ -103,7 +103,7 @@ done
 echo -e "${GREEN}"
 cat << 'EOF'
  ╔═══════════════════════════════════════════════════════════╗
- ║               SKADA-IDS-KC Windows Builder                ║
+ ║               SCADA-IDS-KC Windows Builder                ║
  ║              ULTRA PERFECT WSL BUILD SYSTEM              ║
  ║                    DO IT RIGHT, DO IT NOW!               ║
  ╚═══════════════════════════════════════════════════════════╝
@@ -371,10 +371,10 @@ import sys
 sys.path.insert(0, 'src')
 
 try:
-    from skada_ids.settings import get_settings
-    from skada_ids.features import FeatureExtractor
-    from skada_ids.ml import get_detector
-    from skada_ids.controller import get_controller
+    from scada_ids.settings import get_settings
+    from scada_ids.features import FeatureExtractor
+    from scada_ids.ml import get_detector
+    from scada_ids.controller import get_controller
     print("✅ All core modules imported successfully")
 except Exception as e:
     print(f"❌ Import failed: {e}")
@@ -426,12 +426,12 @@ else
 fi
 
 # Verify PyInstaller spec files
-if [[ ! -f "packaging/skada_windows.spec" ]]; then
-    log_error "Windows PyInstaller spec file not found: packaging/skada_windows.spec"
+if [[ ! -f "packaging/scada_windows.spec" ]]; then
+    log_error "Windows PyInstaller spec file not found: packaging/scada_windows.spec"
     exit 1
 fi
 
-if [[ ! -f "packaging/skada.spec" ]]; then
+if [[ ! -f "packaging/scada.spec" ]]; then
     log_warn "Original spec file not found, using Windows-specific spec only"
 fi
 
@@ -449,7 +449,7 @@ if [[ "$WINE_AVAILABLE" == "true" ]]; then
     log_info "Attempting Wine-based Windows cross-compilation..."
     
     # Initialize Wine prefix if not exists
-    export WINEPREFIX="$HOME/.wine_skada"
+    export WINEPREFIX="$HOME/.wine_scada"
     if [[ ! -d "$WINEPREFIX" ]]; then
         log_info "Initializing Wine prefix..."
         run_cmd "Initializing Wine" winecfg /v win10 2>/dev/null || true
@@ -463,12 +463,12 @@ if [[ "$WINE_AVAILABLE" == "true" ]]; then
         wine python.exe -m pip install pyinstaller >/dev/null 2>&1 || true
         
         # Try Windows build with Wine
-        if wine python.exe -m PyInstaller packaging/skada_windows.spec --noconfirm --clean --log-level ERROR 2>/dev/null; then
+        if wine python.exe -m PyInstaller packaging/scada_windows.spec --noconfirm --clean --log-level ERROR 2>/dev/null; then
             log_info "Wine-based Windows build successful!"
         else
             log_warn "Wine-based build failed, falling back to Linux build with Windows target"
             # Fallback to Linux PyInstaller with Windows-optimized spec
-            run_cmd "Building with Windows target spec" pyinstaller packaging/skada_windows.spec \
+            run_cmd "Building with Windows target spec" pyinstaller packaging/scada_windows.spec \
                 --noconfirm \
                 --clean \
                 --log-level INFO \
@@ -477,7 +477,7 @@ if [[ "$WINE_AVAILABLE" == "true" ]]; then
         fi
     else
         log_warn "Windows Python not found in Wine, using Linux PyInstaller with Windows spec"
-        run_cmd "Building Windows executable" pyinstaller packaging/skada_windows.spec \
+        run_cmd "Building Windows executable" pyinstaller packaging/scada_windows.spec \
             --noconfirm \
             --clean \
             --log-level INFO \
@@ -486,7 +486,7 @@ if [[ "$WINE_AVAILABLE" == "true" ]]; then
     fi
 else
     log_info "Running PyInstaller for Windows target with optimized spec..."
-    run_cmd "Building Windows executable" pyinstaller packaging/skada_windows.spec \
+    run_cmd "Building Windows executable" pyinstaller packaging/scada_windows.spec \
         --noconfirm \
         --clean \
         --log-level INFO \
@@ -498,8 +498,8 @@ fi
 log_step "STEP 9: Verifying build output"
 
 # Check for both possible executable names (cross-compilation may not add .exe)
-exe_path="dist/SKADA-IDS-KC.exe"
-linux_exe_path="dist/SKADA-IDS-KC"
+exe_path="dist/SCADA-IDS-KC.exe"
+linux_exe_path="dist/SCADA-IDS-KC"
 
 if [[ -f "$exe_path" ]]; then
     log_info "Found Windows executable: $exe_path"
@@ -573,11 +573,11 @@ fi
 if [[ "$CREATE_INSTALLER" == "true" ]]; then
     log_step "STEP 10: Creating installation package"
     
-    package_name="SKADA-IDS-KC-Windows-$(date +%Y%m%d-%H%M%S).zip"
+    package_name="SCADA-IDS-KC-Windows-$(date +%Y%m%d-%H%M%S).zip"
     package_path="dist/$package_name"
     
     log_info "Creating ZIP installation package..."
-    run_cmd "Creating installation package" zip -r "$package_path" dist/SKADA-IDS-KC.exe
+    run_cmd "Creating installation package" zip -r "$package_path" dist/SCADA-IDS-KC.exe
     
     if [[ -f "$package_path" ]]; then
         package_size=$(ls -lh "$package_path" | awk '{print $5}')
@@ -595,7 +595,7 @@ log_step "STEP 11: Generating build report"
 build_report_file="build_report_$(date +%Y%m%d-%H%M%S).txt"
 
 cat > "$build_report_file" << EOF
-=== SKADA-IDS-KC Windows Build Report ===
+=== SCADA-IDS-KC Windows Build Report ===
 Build Date: $(date)
 Build Host: $(hostname)
 Build User: $(whoami)
@@ -645,11 +645,11 @@ EOF
 echo -e "${NC}"
 
 echo -e "${YELLOW}🚀 Quick Start Commands:${NC}"
-echo -e "${CYAN}   wine dist/SKADA-IDS-KC.exe --help${NC}          # Show help (with Wine)"
-echo -e "${CYAN}   wine dist/SKADA-IDS-KC.exe --cli --status${NC}  # Check status (with Wine)"
+echo -e "${CYAN}   wine dist/SCADA-IDS-KC.exe --help${NC}          # Show help (with Wine)"
+echo -e "${CYAN}   wine dist/SCADA-IDS-KC.exe --cli --status${NC}  # Check status (with Wine)"
 echo -e "${CYAN}   # Copy to Windows and run:${NC}"
-echo -e "${CYAN}   dist\\SKADA-IDS-KC.exe${NC}                     # Run GUI mode"
-echo -e "${CYAN}   dist\\SKADA-IDS-KC.exe --cli --status${NC}      # Check status"
+echo -e "${CYAN}   dist\\SCADA-IDS-KC.exe${NC}                     # Run GUI mode"
+echo -e "${CYAN}   dist\\SCADA-IDS-KC.exe --cli --status${NC}      # Check status"
 
 echo ""
 echo -e "${GREEN}✅ Windows executable successfully built:${NC} ${CYAN}$exe_path${NC}"

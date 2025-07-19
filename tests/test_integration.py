@@ -1,5 +1,5 @@
 """
-Integration tests for SKADA-IDS-KC components
+Integration tests for SCADA-IDS-KC components
 """
 
 import pytest
@@ -8,10 +8,10 @@ import threading
 from unittest.mock import Mock, patch
 from queue import Queue
 
-from skada_ids.controller import IDSController
-from skada_ids.capture import PacketSniffer
-from skada_ids.features import FeatureExtractor
-from skada_ids.ml import MLDetector
+from scada_ids.controller import IDSController
+from scada_ids.capture import PacketSniffer
+from scada_ids.features import FeatureExtractor
+from scada_ids.ml import MLDetector
 
 
 @pytest.mark.integration
@@ -21,9 +21,9 @@ class TestIDSControllerIntegration:
     @pytest.fixture
     def mock_dependencies(self, mock_settings, mock_scapy, mock_ml_models, mock_notifications):
         """Mock all external dependencies for integration testing."""
-        with patch('skada_ids.controller.get_settings', return_value=mock_settings), \
-             patch('skada_ids.capture.scapy', mock_scapy), \
-             patch('skada_ids.ml.joblib') as mock_joblib:
+        with patch('scada_ids.controller.get_settings', return_value=mock_settings), \
+             patch('scada_ids.capture.scapy', mock_scapy), \
+             patch('scada_ids.ml.joblib') as mock_joblib:
             
             # Mock joblib to return our test models
             mock_joblib.load.side_effect = [mock_ml_models['classifier'], mock_ml_models['scaler']]
@@ -186,9 +186,9 @@ class TestFeatureMLIntegration:
     
     def test_feature_extraction_to_ml_prediction(self, mock_settings, mock_ml_models):
         """Test complete feature extraction to ML prediction pipeline."""
-        with patch('skada_ids.features.get_settings', return_value=mock_settings), \
-             patch('skada_ids.ml.get_settings', return_value=mock_settings), \
-             patch('skada_ids.ml.joblib.load') as mock_load:
+        with patch('scada_ids.features.get_settings', return_value=mock_settings), \
+             patch('scada_ids.ml.get_settings', return_value=mock_settings), \
+             patch('scada_ids.ml.joblib.load') as mock_load:
             
             # Setup ML models
             mock_load.side_effect = [mock_ml_models['classifier'], mock_ml_models['scaler']]
@@ -232,9 +232,9 @@ class TestEndToEndWorkflow:
     
     def test_complete_detection_workflow(self, mock_settings, mock_scapy, mock_ml_models, mock_notifications):
         """Test complete detection workflow from packet to alert."""
-        with patch('skada_ids.controller.get_settings', return_value=mock_settings), \
-             patch('skada_ids.capture.scapy', mock_scapy), \
-             patch('skada_ids.ml.joblib') as mock_joblib:
+        with patch('scada_ids.controller.get_settings', return_value=mock_settings), \
+             patch('scada_ids.capture.scapy', mock_scapy), \
+             patch('scada_ids.ml.joblib') as mock_joblib:
             
             # Setup ML models to detect attack
             mock_ml_models['classifier'].predict_proba.return_value = [[0.1, 0.9]]
@@ -287,9 +287,9 @@ class TestEndToEndWorkflow:
     
     def test_normal_traffic_workflow(self, mock_settings, mock_scapy, mock_ml_models, mock_notifications):
         """Test workflow with normal traffic (no alerts)."""
-        with patch('skada_ids.controller.get_settings', return_value=mock_settings), \
-             patch('skada_ids.capture.scapy', mock_scapy), \
-             patch('skada_ids.ml.joblib') as mock_joblib:
+        with patch('scada_ids.controller.get_settings', return_value=mock_settings), \
+             patch('scada_ids.capture.scapy', mock_scapy), \
+             patch('scada_ids.ml.joblib') as mock_joblib:
             
             # Setup ML models to detect normal traffic
             mock_ml_models['classifier'].predict_proba.return_value = [[0.9, 0.1]]

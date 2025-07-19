@@ -1,4 +1,4 @@
-# SKADA-IDS-KC Troubleshooting Guide
+# SCADA-IDS-KC Troubleshooting Guide
 
 ## Common Issues and Solutions
 
@@ -44,7 +44,7 @@
 
 2. Run with root privileges:
    ```bash
-   sudo ./SKADA-IDS-KC
+   sudo ./SCADA-IDS-KC
    ```
 
 3. Check network interfaces:
@@ -70,7 +70,7 @@
 - Verify antivirus is not blocking the application
 
 **Linux/macOS:**
-- Run with sudo: `sudo ./SKADA-IDS-KC`
+- Run with sudo: `sudo ./SCADA-IDS-KC`
 - Add user to appropriate groups:
   ```bash
   # Add user to netdev group (Ubuntu)
@@ -160,10 +160,10 @@
 3. Monitor memory usage:
    ```bash
    # Linux
-   top -p $(pgrep SKADA-IDS-KC)
+   top -p $(pgrep SCADA-IDS-KC)
    
    # Windows
-   Get-Process "SKADA-IDS-KC" | Select-Object Name, CPU, WorkingSet
+   Get-Process "SCADA-IDS-KC" | Select-Object Name, CPU, WorkingSet
    ```
 
 #### No packets captured
@@ -241,21 +241,21 @@
 2. Restart application:
    ```bash
    # Linux
-   pkill -f SKADA-IDS-KC
-   ./SKADA-IDS-KC
+   pkill -f SCADA-IDS-KC
+   ./SCADA-IDS-KC
    
    # Windows
-   taskkill /F /IM SKADA-IDS-KC.exe
-   SKADA-IDS-KC.exe
+   taskkill /F /IM SCADA-IDS-KC.exe
+   SCADA-IDS-KC.exe
    ```
 
 3. Run from command line to see errors:
    ```bash
    # Linux
-   ./SKADA-IDS-KC
+   ./SCADA-IDS-KC
    
    # Windows
-   SKADA-IDS-KC.exe
+   SCADA-IDS-KC.exe
    ```
 
 #### System tray icon missing
@@ -365,8 +365,8 @@
 #### Finding log files
 
 **Default locations:**
-- **Linux:** `./logs/skada.log`
-- **Windows:** `.\logs\skada.log`
+- **Linux:** `./logs/scada.log`
+- **Windows:** `.\logs\scada.log`
 - **Installed:** Check installation directory
 
 #### Understanding log levels
@@ -442,7 +442,7 @@ logging:
 2. **Application logs:**
    ```bash
    # Copy recent logs
-   tail -n 100 logs/skada.log > diagnostic_logs.txt
+   tail -n 100 logs/scada.log > diagnostic_logs.txt
    ```
 
 3. **Network configuration:**
@@ -508,14 +508,14 @@ print('Interfaces:', scapy.get_if_list())
 
 # Test ML models
 python -c "
-from skada_ids.ml import MLDetector
+from scada_ids.ml import MLDetector
 detector = MLDetector()
 print('Model loaded:', detector.is_loaded)
 "
 
 # Test notifications
 python -c "
-from skada_ids.notifier import NotificationManager
+from scada_ids.notifier import NotificationManager
 notifier = NotificationManager()
 print('Available:', notifier.is_available())
 notifier.test_notification()
@@ -531,7 +531,7 @@ Profile application performance:
 pip install py-spy
 
 # Profile running application
-py-spy top --pid $(pgrep SKADA-IDS-KC)
+py-spy top --pid $(pgrep SCADA-IDS-KC)
 ```
 
 This troubleshooting guide covers the most common issues. For additional help, consult the other documentation files or create a GitHub issue with detailed information about your specific problem.

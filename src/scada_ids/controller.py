@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class IDSController:
-    """Thread-safe main controller for the SKADA-IDS-KC system with enhanced monitoring."""
+    """Thread-safe main controller for the SCADA-IDS-KC system with enhanced monitoring."""
     
     MAX_ATTACK_RATE = 100  # Max attacks per minute before rate limiting
     MAX_ERROR_RATE = 50    # Max errors per minute before throttling

@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from skada_ids.settings import AppSettings, get_settings, reload_settings
+from scada_ids.settings import AppSettings, get_settings, reload_settings
 
 
 class TestAppSettings:
@@ -17,7 +17,7 @@ class TestAppSettings:
         """Test default settings creation."""
         settings = AppSettings()
         
-        assert settings.app_name == "SKADA-IDS-KC"
+        assert settings.app_name == "SCADA-IDS-KC"
         assert settings.version == "1.0.0"
         assert settings.debug_mode is False
         assert settings.network.bpf_filter == "tcp and tcp[13]=2"
@@ -29,7 +29,7 @@ class TestAppSettings:
         config_file = temp_config_dir / "test.yaml"
         settings = AppSettings.load_from_yaml(str(config_file))
         
-        assert settings.app_name == "SKADA-IDS-KC-Test"
+        assert settings.app_name == "SCADA-IDS-KC-Test"
         assert settings.version == "1.0.0-test"
         assert settings.debug_mode is True
         assert settings.network.interface == "test_interface"
@@ -41,7 +41,7 @@ class TestAppSettings:
         settings = AppSettings.load_from_yaml("nonexistent.yaml")
         
         # Should use defaults
-        assert settings.app_name == "SKADA-IDS-KC"
+        assert settings.app_name == "SCADA-IDS-KC"
         assert settings.version == "1.0.0"
     
     def test_save_to_yaml(self):
@@ -66,10 +66,10 @@ class TestAppSettings:
     def test_environment_overrides(self):
         """Test environment variable overrides."""
         with patch.dict('os.environ', {
-            'SKADA_APP_NAME': 'ENV_APP',
-            'SKADA_DEBUG_MODE': 'true',
-            'SKADA_NETWORK__INTERFACE': 'env_interface',
-            'SKADA_DETECTION__PROB_THRESHOLD': '0.8'
+            'SCADA_APP_NAME': 'ENV_APP',
+            'SCADA_DEBUG_MODE': 'true',
+            'SCADA_NETWORK__INTERFACE': 'env_interface',
+            'SCADA_DETECTION__PROB_THRESHOLD': '0.8'
         }):
             settings = AppSettings()
             
@@ -117,10 +117,10 @@ class TestGlobalSettings:
         # Reload with specific config
         settings2 = reload_settings(str(config_file))
         
-        assert settings2.app_name == "SKADA-IDS-KC-Test"
+        assert settings2.app_name == "SCADA-IDS-KC-Test"
         assert settings2.app_name != original_name
         
         # Verify global instance was updated
         settings3 = get_settings()
         assert settings3 is settings2
-        assert settings3.app_name == "SKADA-IDS-KC-Test"
+        assert settings3.app_name == "SCADA-IDS-KC-Test"

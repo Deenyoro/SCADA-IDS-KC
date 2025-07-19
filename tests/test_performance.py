@@ -7,7 +7,7 @@ import time
 import threading
 from unittest.mock import Mock, patch, MagicMock
 
-from skada_ids.performance import (
+from scada_ids.performance import (
     PerformanceMonitor, MemoryOptimizer, PacketProcessingOptimizer,
     get_performance_monitor, PerformanceMetrics
 )
@@ -298,7 +298,7 @@ class TestGlobalFunctions:
     @patch('psutil.disk_usage')
     def test_get_system_info(self, mock_disk_usage, mock_virtual_memory, mock_cpu_count):
         """Test system information retrieval."""
-        from skada_ids.performance import get_system_info
+        from scada_ids.performance import get_system_info
         
         # Mock system info
         mock_cpu_count.return_value = 8

@@ -1,3 +1,3 @@
 """
-Test suite for SKADA-IDS-KC
+Test suite for SCADA-IDS-KC
 """

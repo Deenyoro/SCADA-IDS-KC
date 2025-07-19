@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # Windows cross-compilation service
+  windows-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.windows-build
+      args:
+        PYTHON_VERSION: "3.11.9"
+    container_name: scada-windows-builder
+    volumes:
+      # Mount the dist directory to get the built executable
+      - ./dist:/home/wineuser/project/dist
+      # Mount build directory for debugging
+      - ./build:/home/wineuser/project/build
+      # Mount logs directory
+      - ./logs:/home/wineuser/project/logs
+    environment:
+      - WINEDEBUG=-all
+      - WINEPREFIX=/opt/wine-python
+    # Remove container after build completes
+    restart: "no"
+    
+  # Alternative service for interactive debugging
+  windows-builder-debug:
+    build:
+      context: .
+      dockerfile: Dockerfile.windows-build
+      args:
+        PYTHON_VERSION: "3.11.9"
+    container_name: scada-windows-builder-debug
+    volumes:
+      - ./dist:/home/wineuser/project/dist
+      - ./build:/home/wineuser/project/build
+      - ./logs:/home/wineuser/project/logs
+    environment:
+      - WINEDEBUG=-all
+      - WINEPREFIX=/opt/wine-python
+    # Override command for interactive shell
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    restart: "no"
+
+  # Service for testing the built executable
+  windows-tester:
+    build:
+      context: .
+      dockerfile: Dockerfile.windows-build
+      args:
+        PYTHON_VERSION: "3.11.9"
+    container_name: scada-windows-tester
+    volumes:
+      - ./dist:/home/wineuser/project/dist:ro
+    environment:
+      - WINEDEBUG=-all
+      - WINEPREFIX=/opt/wine-python
+    command: >
+      bash -c "
+        if [ -f dist/SCADA-IDS-KC.exe ]; then
+          echo '🧪 Testing Windows executable...'
+          echo '📋 File info:'
+          file dist/SCADA-IDS-KC.exe
+          ls -lh dist/SCADA-IDS-KC.exe
+          echo ''
+          echo '🚀 Running version check:'
+          timeout 30 xvfb-run -a wine dist/SCADA-IDS-KC.exe --version || echo 'Version check failed'
+          echo ''
+          echo '📊 Running help command:'
+          timeout 30 xvfb-run -a wine dist/SCADA-IDS-KC.exe --help || echo 'Help command failed'
+          echo ''
+          echo '✅ Testing completed'
+        else
+          echo '❌ No executable found to test'
+          exit 1
+        fi
+      "
+    restart: "no"
+    depends_on:
+      - windows-builder

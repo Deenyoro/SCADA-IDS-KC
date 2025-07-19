@@ -1,5 +1,5 @@
 """
-Pytest configuration and fixtures for SKADA-IDS-KC tests
+Pytest configuration and fixtures for SCADA-IDS-KC tests
 """
 
 import sys
@@ -12,14 +12,14 @@ src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 # Import after path setup
-from skada_ids.settings import AppSettings
+from scada_ids.settings import AppSettings
 
 
 @pytest.fixture
 def mock_settings():
     """Provide mock settings for testing."""
     settings = AppSettings(
-        app_name="SKADA-IDS-KC-Test",
+        app_name="SCADA-IDS-KC-Test",
         version="1.0.0-test",
         debug_mode=True
     )
@@ -155,7 +155,7 @@ def temp_config_dir(tmp_path):
     # Create test configuration file
     config_file = config_dir / "test.yaml"
     config_file.write_text("""
-app_name: "SKADA-IDS-KC-Test"
+app_name: "SCADA-IDS-KC-Test"
 version: "1.0.0-test"
 debug_mode: true
 

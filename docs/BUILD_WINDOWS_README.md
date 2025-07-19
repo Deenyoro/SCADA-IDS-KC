@@ -1,4 +1,4 @@
-# 🚀 SKADA-IDS-KC Windows Build System
+# 🚀 SCADA-IDS-KC Windows Build System
 ## ULTRA PERFECT CROSS-PLATFORM BUILD SYSTEM
 
 ### 🎯 **Multiple Build Options Available**
@@ -69,7 +69,7 @@ build_windows.bat -DownloadDeps -InstallDeps -Clean
 ## 📦 **What Gets Built**
 
 ### **Main Output:**
-- `dist/SKADA-IDS-KC.exe` - Windows executable (≈50-100 MB)
+- `dist/SCADA-IDS-KC.exe` - Windows executable (≈50-100 MB)
 - `build_report_*.txt` - Detailed build report
 - `dist/*.zip` - Installation package (if requested)
 
@@ -92,14 +92,14 @@ build_windows.bat -DownloadDeps -InstallDeps -Clean
 ### **1. WSL/Linux Users (FASTEST):**
 ```bash
 git clone <repository>
-cd SKADA-IDS-KC
+cd SCADA-IDS-KC
 ./build_windows.sh --clean --create-installer
 ```
 
 ### **2. Windows Users:**
 ```batch
 git clone <repository>
-cd SKADA-IDS-KC
+cd SCADA-IDS-KC
 build_windows.bat -DownloadDeps -InstallDeps -Clean
 ```
 
@@ -197,20 +197,20 @@ chmod +x build_windows.sh
 ### **Automatic Testing:**
 ```bash
 # WSL/Linux (with Wine)
-wine dist/SKADA-IDS-KC.exe --version
+wine dist/SCADA-IDS-KC.exe --version
 
 # Windows
-dist\SKADA-IDS-KC.exe --version
+dist\SCADA-IDS-KC.exe --version
 ```
 
 ### **Manual Testing:**
 ```bash
 # GUI mode
-dist\SKADA-IDS-KC.exe
+dist\SCADA-IDS-KC.exe
 
 # CLI mode  
-dist\SKADA-IDS-KC.exe --cli --status
-dist\SKADA-IDS-KC.exe --cli --interfaces
+dist\SCADA-IDS-KC.exe --cli --status
+dist\SCADA-IDS-KC.exe --cli --interfaces
 ```
 
 ---
@@ -218,18 +218,18 @@ dist\SKADA-IDS-KC.exe --cli --interfaces
 ## 📋 **File Structure**
 
 ```
-SKADA-IDS-KC/
+SCADA-IDS-KC/
 ├── build_windows.sh         # ⭐ WSL/Linux build script
 ├── build_windows.ps1        # Windows PowerShell script
 ├── build_windows.bat        # Windows batch wrapper
 ├── setup_windows_deps.ps1   # Dependency downloader
 ├── requirements.txt          # Python dependencies
-├── packaging/skada.spec     # PyInstaller configuration
+├── packaging/scada.spec     # PyInstaller configuration
 ├── src/                     # Source code
 ├── models/                  # ML models
 ├── config/                  # Configuration files
 └── dist/                    # Build output
-    └── SKADA-IDS-KC.exe    # 🎯 Final executable
+    └── SCADA-IDS-KC.exe    # 🎯 Final executable
 ```
 
 ---
@@ -242,9 +242,9 @@ After successful build:
 2. **Install Npcap** (for packet capture)
 3. **Run application:**
    ```cmd
-   SKADA-IDS-KC.exe --help
-   SKADA-IDS-KC.exe --cli --status
-   SKADA-IDS-KC.exe  # GUI mode
+   SCADA-IDS-KC.exe --help
+   SCADA-IDS-KC.exe --cli --status
+   SCADA-IDS-KC.exe  # GUI mode
    ```
 
 ---

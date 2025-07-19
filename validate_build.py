@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build validation script for SKADA-IDS-KC.
+Build validation script for SCADA-IDS-KC.
 Validates build artifacts, dependencies, and deployment readiness.
 """
 
@@ -17,7 +17,7 @@ import shutil
 
 
 class BuildValidator:
-    """Validate SKADA-IDS-KC build artifacts and deployment readiness."""
+    """Validate SCADA-IDS-KC build artifacts and deployment readiness."""
     
     def __init__(self, project_root: Optional[str] = None):
         """Initialize build validator."""
@@ -29,7 +29,7 @@ class BuildValidator:
         
     def validate_all(self) -> Dict[str, Any]:
         """Run all validation checks."""
-        print("🔍 SKADA-IDS-KC Build Validation")
+        print("🔍 SCADA-IDS-KC Build Validation")
         print("=" * 50)
         
         results = {
@@ -77,13 +77,13 @@ class BuildValidator:
             'LICENSE',
             'requirements.txt',
             'pyproject.toml',
-            'src/skada_ids/__init__.py',
-            'src/skada_ids/controller.py',
-            'src/skada_ids/capture.py',
-            'src/skada_ids/features.py',
-            'src/skada_ids/ml.py',
-            'src/skada_ids/notifier.py',
-            'src/skada_ids/settings.py',
+            'src/scada_ids/__init__.py',
+            'src/scada_ids/controller.py',
+            'src/scada_ids/capture.py',
+            'src/scada_ids/features.py',
+            'src/scada_ids/ml.py',
+            'src/scada_ids/notifier.py',
+            'src/scada_ids/settings.py',
             'src/ui/main_window.py',
             'config/default.yaml',
             'config/log_config.json',
@@ -94,7 +94,7 @@ class BuildValidator:
         ]
         
         required_dirs = [
-            'src/skada_ids',
+            'src/scada_ids',
             'src/ui',
             'config',
             'models',
@@ -288,7 +288,7 @@ class BuildValidator:
             'build_windows.ps1': self.project_root / 'build_windows.ps1',
             'build_linux.sh': self.project_root / 'build_linux.sh',
             'setup_dev.py': self.project_root / 'setup_dev.py',
-            'pyinstaller_spec': self.project_root / 'packaging' / 'skada.spec'
+            'pyinstaller_spec': self.project_root / 'packaging' / 'scada.spec'
         }
         
         results = {'status': 'pass', 'scripts': {}}
@@ -475,9 +475,9 @@ class BuildValidator:
         dist_dir = self.project_root / 'dist'
         
         if self.platform == 'Windows':
-            executable_name = 'SKADA-IDS-KC.exe'
+            executable_name = 'SCADA-IDS-KC.exe'
         else:
-            executable_name = 'SKADA-IDS-KC'
+            executable_name = 'SCADA-IDS-KC'
         
         executable_path = dist_dir / executable_name
         
@@ -590,7 +590,7 @@ def main():
     """Main entry point."""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Validate SKADA-IDS-KC build')
+    parser = argparse.ArgumentParser(description='Validate SCADA-IDS-KC build')
     parser.add_argument('--project-root', help='Project root directory')
     parser.add_argument('--output', help='Output JSON file for results')
     parser.add_argument('--quiet', action='store_true', help='Quiet mode')

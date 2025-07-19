@@ -1,4 +1,4 @@
-# SKADA-IDS-KC Security Audit Report
+# SCADA-IDS-KC Security Audit Report
 
 **Date:** January 19, 2025  
 **Version:** 1.0.0  
@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-This security audit report covers the comprehensive review and improvements made to the SKADA-IDS-KC Network Intrusion Detection System. The audit focused on identifying and mitigating security vulnerabilities, implementing security best practices, and ensuring the application meets enterprise security standards.
+This security audit report covers the comprehensive review and improvements made to the SCADA-IDS-KC Network Intrusion Detection System. The audit focused on identifying and mitigating security vulnerabilities, implementing security best practices, and ensuring the application meets enterprise security standards.
 
 ### Key Findings
 
@@ -299,7 +299,7 @@ The application now meets or exceeds:
 
 ## Conclusion
 
-The SKADA-IDS-KC application has undergone comprehensive security improvements and now implements enterprise-grade security controls. All identified security vulnerabilities have been addressed, and the application follows security best practices throughout its architecture.
+The SCADA-IDS-KC application has undergone comprehensive security improvements and now implements enterprise-grade security controls. All identified security vulnerabilities have been addressed, and the application follows security best practices throughout its architecture.
 
 The implemented security framework provides:
 - **Robust input validation** and sanitization

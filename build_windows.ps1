@@ -235,7 +235,7 @@ try {
 Write-Host "Building executable with PyInstaller..." -ForegroundColor Yellow
 # Set environment for build
 $env:PYTHONPATH = "src"
-pyinstaller packaging\skada_windows.spec --noconfirm --clean --log-level INFO
+pyinstaller packaging\scada_windows.spec --noconfirm --clean --log-level INFO
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "PyInstaller build failed"
@@ -285,7 +285,7 @@ if (Test-Path $exePath) {
 }
 
 # Optional: Create installer (if NSIS is available)
-$nsisScript = "packaging\skada_ids.nsi"
+$nsisScript = "packaging\scada_ids.nsi"
 if (Test-Path $nsisScript) {
     Write-Host "Creating installer..." -ForegroundColor Yellow
     try {

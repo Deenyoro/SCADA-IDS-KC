@@ -1,6 +1,6 @@
 # ML Models Directory
 
-This directory contains the machine learning models used by SKADA-IDS-KC for SYN flood detection.
+This directory contains the machine learning models used by SCADA-IDS-KC for SYN flood detection.
 
 ## Required Files
 
@@ -25,7 +25,7 @@ This creates placeholder models that can be used for testing and development.
 To train real models, you need:
 
 1. **Network traffic data** with labeled SYN flood attacks
-2. **Feature extraction** using the same features as defined in `src/skada_ids/features.py`
+2. **Feature extraction** using the same features as defined in `src/scada_ids/features.py`
 3. **Model training** using scikit-learn
 
 Example training process:

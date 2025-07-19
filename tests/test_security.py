@@ -1,5 +1,5 @@
 """
-Security tests for SKADA-IDS-KC.
+Security tests for SCADA-IDS-KC.
 """
 
 import pytest
@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from skada_ids.security import (
+from scada_ids.security import (
     SecurityManager, RateLimiter, InputSanitizer, CryptoUtils,
     PrivilegeManager, SecurityAuditor, get_security_manager
 )

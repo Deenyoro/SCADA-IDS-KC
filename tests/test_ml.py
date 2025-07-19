@@ -7,7 +7,7 @@ import numpy as np
 from unittest.mock import patch, Mock
 from pathlib import Path
 
-from skada_ids.ml import MLDetector, DummyClassifier, DummyScaler
+from scada_ids.ml import MLDetector, DummyClassifier, DummyScaler
 
 
 class TestMLDetector:
@@ -15,7 +15,7 @@ class TestMLDetector:
     
     def test_initialization(self, mock_settings):
         """Test ML detector initialization."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings):
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings):
             detector = MLDetector()
             assert detector.settings is mock_settings
             assert detector.model is not None  # Should load dummy model
@@ -26,8 +26,8 @@ class TestMLDetector:
         mock_settings.detection.model_path = "models/syn_model.joblib"
         mock_settings.detection.scaler_path = "models/syn_scaler.joblib"
         
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings), \
-             patch('skada_ids.ml.joblib.load') as mock_load, \
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings), \
+             patch('scada_ids.ml.joblib.load') as mock_load, \
              patch.object(mock_settings, 'get_resource_path') as mock_get_path:
             
             # Mock file paths
@@ -46,7 +46,7 @@ class TestMLDetector:
     
     def test_load_models_missing_files(self, mock_settings):
         """Test model loading with missing files."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings), \
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings), \
              patch.object(mock_settings, 'get_resource_path') as mock_get_path:
             
             # Mock non-existent paths
@@ -64,7 +64,7 @@ class TestMLDetector:
     
     def test_predict_attack(self, mock_settings, mock_attack_features):
         """Test prediction with attack features."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings):
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings):
             detector = MLDetector()
             
             # Mock high attack probability
@@ -77,7 +77,7 @@ class TestMLDetector:
     
     def test_predict_normal(self, mock_settings, mock_normal_features):
         """Test prediction with normal features."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings):
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings):
             detector = MLDetector()
             
             # Mock low attack probability
@@ -90,7 +90,7 @@ class TestMLDetector:
     
     def test_predict_not_loaded(self, mock_settings, mock_attack_features):
         """Test prediction when models are not loaded."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings):
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings):
             detector = MLDetector()
             detector.is_loaded = False
             detector.model = None
@@ -103,7 +103,7 @@ class TestMLDetector:
     
     def test_features_to_vector(self, mock_settings, mock_attack_features):
         """Test feature dictionary to vector conversion."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings):
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings):
             detector = MLDetector()
             vector = detector._features_to_vector(mock_attack_features)
             
@@ -113,7 +113,7 @@ class TestMLDetector:
     
     def test_features_to_vector_missing_features(self, mock_settings):
         """Test feature vector conversion with missing features."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings):
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings):
             detector = MLDetector()
             
             # Incomplete feature set
@@ -133,7 +133,7 @@ class TestMLDetector:
     
     def test_features_to_vector_nan_handling(self, mock_settings):
         """Test handling of NaN and infinite values in features."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings):
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings):
             detector = MLDetector()
             
             features_with_nan = {
@@ -150,7 +150,7 @@ class TestMLDetector:
     
     def test_get_model_info(self, mock_settings):
         """Test model information retrieval."""
-        with patch('skada_ids.ml.get_settings', return_value=mock_settings):
+        with patch('scada_ids.ml.get_settings', return_value=mock_settings):
             detector = MLDetector()
             info = detector.get_model_info()
             

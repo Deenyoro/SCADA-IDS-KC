@@ -34,7 +34,7 @@
             "level": "DEBUG",
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "detailed",
-            "filename": "logs/skada.log",
+            "filename": "logs/scada.log",
             "maxBytes": 2097152,
             "backupCount": 7,
             "encoding": "utf8"
@@ -43,14 +43,14 @@
             "level": "ERROR",
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "detailed",
-            "filename": "logs/skada_errors.log",
+            "filename": "logs/scada_errors.log",
             "maxBytes": 1048576,
             "backupCount": 3,
             "encoding": "utf8"
         }
     },
     "loggers": {
-        "skada_ids": {
+        "scada_ids": {
             "level": "DEBUG",
             "handlers": ["console", "file", "error_file"],
             "propagate": false

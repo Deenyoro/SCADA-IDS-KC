@@ -1,15 +1,15 @@
-; SKADA-IDS-KC NSIS Installer Script
+; SCADA-IDS-KC NSIS Installer Script
 ; Creates a Windows installer that includes dependencies and the main application
 
-!define APP_NAME "SKADA-IDS-KC"
+!define APP_NAME "SCADA-IDS-KC"
 !define APP_VERSION "1.0.0"
-!define APP_PUBLISHER "SKADA-IDS-KC Team"
-!define APP_URL "https://github.com/skada-ids-kc/skada-ids-kc"
+!define APP_PUBLISHER "SCADA-IDS-KC Team"
+!define APP_URL "https://github.com/scada-ids-kc/scada-ids-kc"
 !define APP_DESCRIPTION "Network Intrusion Detection System"
 
 ; Installer settings
 Name "${APP_NAME}"
-OutFile "SKADA-IDS-KC-Setup.exe"
+OutFile "SCADA-IDS-KC-Setup.exe"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "Software\${APP_NAME}" "InstallDir"
 RequestExecutionLevel admin
@@ -55,7 +55,7 @@ Section "Core Application" SecCore
     SetOutPath "$INSTDIR"
     
     ; Copy main executable
-    File "..\dist\SKADA-IDS-KC.exe"
+    File "..\dist\SCADA-IDS-KC.exe"
     
     ; Copy documentation
     File "..\README.md"
@@ -73,19 +73,19 @@ Section "Core Application" SecCore
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayVersion" "${APP_VERSION}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "Publisher" "${APP_PUBLISHER}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "URLInfoAbout" "${APP_URL}"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayIcon" "$INSTDIR\SKADA-IDS-KC.exe"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayIcon" "$INSTDIR\SCADA-IDS-KC.exe"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "UninstallString" "$INSTDIR\Uninstall.exe"
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoModify" 1
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoRepair" 1
 SectionEnd
 
 Section "Desktop Shortcut" SecDesktop
-    CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\SKADA-IDS-KC.exe" "" "$INSTDIR\SKADA-IDS-KC.exe" 0
+    CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\SCADA-IDS-KC.exe" "" "$INSTDIR\SCADA-IDS-KC.exe" 0
 SectionEnd
 
 Section "Start Menu Shortcuts" SecStartMenu
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-    CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\SKADA-IDS-KC.exe" "" "$INSTDIR\SKADA-IDS-KC.exe" 0
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\SCADA-IDS-KC.exe" "" "$INSTDIR\SCADA-IDS-KC.exe" 0
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
 SectionEnd
 
@@ -151,7 +151,7 @@ SectionEnd
 ; Uninstaller section
 Section "Uninstall"
     ; Remove files
-    Delete "$INSTDIR\SKADA-IDS-KC.exe"
+    Delete "$INSTDIR\SCADA-IDS-KC.exe"
     Delete "$INSTDIR\README.md"
     Delete "$INSTDIR\LICENSE"
     Delete "$INSTDIR\Uninstall.exe"

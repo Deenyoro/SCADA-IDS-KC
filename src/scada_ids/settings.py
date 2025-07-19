@@ -98,7 +98,7 @@ class DetectionSettings(BaseSettings):
         # Prevent path traversal attacks
         normalized_path = os.path.normpath(v)
         if normalized_path.startswith('..') or os.path.isabs(normalized_path):
-            if not os.path.isabs(normalized_path) or not normalized_path.startswith('/opt/skada'):
+            if not os.path.isabs(normalized_path) or not normalized_path.startswith('/opt/scada'):
                 logger.warning(f"Potentially unsafe model path: {v}")
 
         return normalized_path
@@ -122,7 +122,7 @@ class LoggingSettings(BaseSettings):
     """Logging configuration."""
     log_level: str = Field("INFO", description="Logging level")
     log_dir: str = Field("logs", description="Log directory")
-    log_file: str = Field("skada.log", description="Log filename")
+    log_file: str = Field("scada.log", description="Log filename")
     max_log_size: int = Field(2097152, description="Max log file size in bytes (2MB)", ge=1024, le=100*1024*1024)
     backup_count: int = Field(7, description="Number of backup log files", ge=1, le=50)
     
@@ -131,7 +131,7 @@ class LoggingSettings(BaseSettings):
         if not PYDANTIC_AVAILABLE:
             self.log_level = "INFO"
             self.log_dir = "logs"
-            self.log_file = "skada.log"
+            self.log_file = "scada.log"
             self.max_log_size = 2097152
             self.backup_count = 7
 
@@ -171,7 +171,7 @@ class LoggingSettings(BaseSettings):
 
 class AppSettings(BaseSettings):
     """Main application settings."""
-    app_name: str = Field("SKADA-IDS-KC", description="Application name")
+    app_name: str = Field("SCADA-IDS-KC", description="Application name")
     version: str = Field("1.0.0", description="Application version")
     debug_mode: bool = Field(False, description="Enable debug mode")
     
@@ -186,7 +186,7 @@ class AppSettings(BaseSettings):
         
         # Initialize sub-settings if not using Pydantic
         if not PYDANTIC_AVAILABLE:
-            self.app_name = "SKADA-IDS-KC"
+            self.app_name = "SCADA-IDS-KC"
             self.version = "1.0.0"
             self.debug_mode = False
             self.network = NetworkSettings()
@@ -195,7 +195,7 @@ class AppSettings(BaseSettings):
             self.logging = LoggingSettings()
 
     class Config:
-        env_prefix = "SKADA_"
+        env_prefix = "SCADA_"
         env_nested_delimiter = "__"
         case_sensitive = False
 
@@ -266,7 +266,7 @@ class AppSettings(BaseSettings):
 
             # Security check: prevent writing to dangerous locations
             if config_file_path.is_absolute():
-                if not str(config_file_path).startswith(('/opt/skada', '/home', '/tmp')):
+                if not str(config_file_path).startswith(('/opt/scada', '/home', '/tmp')):
                     logger.error(f"Refusing to write to potentially unsafe location: {config_path}")
                     return False
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create dummy ML models for SKADA-IDS-KC when real trained models are not available.
+Create dummy ML models for SCADA-IDS-KC when real trained models are not available.
 This script generates placeholder models that can be used for testing and development.
 """
 

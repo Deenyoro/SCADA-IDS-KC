@@ -1,4 +1,4 @@
-# SKADA-IDS-KC Installation Guide
+# SCADA-IDS-KC Installation Guide
 
 ## System Requirements
 
@@ -19,14 +19,14 @@
 ### Method 1: Pre-built Executable (Recommended)
 
 #### Windows
-1. Download `SKADA-IDS-KC-Setup.exe` from releases
+1. Download `SCADA-IDS-KC-Setup.exe` from releases
 2. Run installer as Administrator
 3. Follow installation wizard
 4. Dependencies (Npcap, VC++ Redistributable) installed automatically
 
 #### Linux
-1. Download `SKADA-IDS-KC` executable
-2. Make executable: `chmod +x SKADA-IDS-KC`
+1. Download `SCADA-IDS-KC` executable
+2. Make executable: `chmod +x SCADA-IDS-KC`
 3. Install system dependencies:
    ```bash
    # Ubuntu/Debian
@@ -38,7 +38,7 @@
    # Fedora
    sudo dnf install libpcap-devel
    ```
-4. Run with root privileges: `sudo ./SKADA-IDS-KC`
+4. Run with root privileges: `sudo ./SCADA-IDS-KC`
 
 ### Method 2: Build from Source
 
@@ -50,8 +50,8 @@
 #### Windows Build
 ```powershell
 # Clone repository
-git clone https://github.com/skada-ids-kc/skada-ids-kc.git
-cd skada-ids-kc
+git clone https://github.com/scada-ids-kc/scada-ids-kc.git
+cd scada-ids-kc
 
 # Run build script
 .\build_windows.ps1
@@ -66,8 +66,8 @@ cd skada-ids-kc
 #### Linux Build
 ```bash
 # Clone repository
-git clone https://github.com/skada-ids-kc/skada-ids-kc.git
-cd skada-ids-kc
+git clone https://github.com/scada-ids-kc/scada-ids-kc.git
+cd scada-ids-kc
 
 # Run build script
 ./build_linux.sh
@@ -83,8 +83,8 @@ cd skada-ids-kc
 
 ```bash
 # Clone repository
-git clone https://github.com/skada-ids-kc/skada-ids-kc.git
-cd skada-ids-kc
+git clone https://github.com/scada-ids-kc/scada-ids-kc.git
+cd scada-ids-kc
 
 # Create virtual environment
 python -m venv .venv
@@ -154,7 +154,7 @@ Ensure the following ports are accessible:
 Get-ItemProperty HKLM:\SOFTWARE\Npcap -ErrorAction SilentlyContinue
 
 # Run application
-.\dist\SKADA-IDS-KC.exe
+.\dist\SCADA-IDS-KC.exe
 ```
 
 #### Linux
@@ -163,7 +163,7 @@ Get-ItemProperty HKLM:\SOFTWARE\Npcap -ErrorAction SilentlyContinue
 ldconfig -p | grep pcap
 
 # Run application
-sudo ./dist/SKADA-IDS-KC
+sudo ./dist/SCADA-IDS-KC
 ```
 
 ### 2. Configuration
@@ -189,7 +189,7 @@ notifications:
 
 ### 3. Test Installation
 
-1. Launch SKADA-IDS-KC
+1. Launch SCADA-IDS-KC
 2. Select network interface from dropdown
 3. Click "Test Notification" to verify alerts work
 4. Click "Start Monitoring" to begin detection
@@ -227,8 +227,8 @@ notifications:
 ### Log Files
 
 Check log files for detailed error information:
-- **Location**: `logs/skada.log`
-- **Error Log**: `logs/skada_errors.log`
+- **Location**: `logs/scada.log`
+- **Error Log**: `logs/scada_errors.log`
 - **Configuration**: `config/log_config.json`
 
 ### Performance Tuning
@@ -260,13 +260,13 @@ detection:
 ### Linux
 ```bash
 # Remove executable
-sudo rm /usr/local/bin/SKADA-IDS-KC
+sudo rm /usr/local/bin/SCADA-IDS-KC
 
 # Remove desktop entry
-rm ~/.local/share/applications/skada-ids-kc.desktop
+rm ~/.local/share/applications/scada-ids-kc.desktop
 
 # Remove configuration (optional)
-rm -rf ~/.config/skada-ids-kc
+rm -rf ~/.config/scada-ids-kc
 ```
 
 ### Development Installation
@@ -275,7 +275,7 @@ rm -rf ~/.config/skada-ids-kc
 deactivate
 
 # Remove project directory
-rm -rf skada-ids-kc
+rm -rf scada-ids-kc
 ```
 
 ## Security Considerations

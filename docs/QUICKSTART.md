@@ -1,4 +1,4 @@
-# SKADA-IDS-KC Quick Start Guide
+# SCADA-IDS-KC Quick Start Guide
 
 ## 🚀 Get Running in 5 Minutes
 
@@ -12,7 +12,7 @@
 #### Windows
 ```powershell
 # Download and run the installer
-.\SKADA-IDS-KC-Setup.exe
+.\SCADA-IDS-KC-Setup.exe
 
 # Or run the build script
 .\build_windows.ps1
@@ -25,7 +25,7 @@ chmod +x build_linux.sh
 ./build_linux.sh
 
 # Run the application
-sudo ./dist/SKADA-IDS-KC
+sudo ./dist/SCADA-IDS-KC
 ```
 
 ### Option 2: Development Mode
