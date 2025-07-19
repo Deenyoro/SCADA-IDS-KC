@@ -12,8 +12,10 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 # Collect ML libraries to fix missing sklearn/joblib modules
-hidden_ml = collect_submodules("sklearn") + collect_submodules("joblib") 
-datas_ml = collect_data_files("sklearn") + collect_data_files("joblib")
+hidden_ml = (collect_submodules("sklearn") + collect_submodules("joblib") + 
+             collect_submodules("scipy") + collect_submodules("numpy"))
+datas_ml = (collect_data_files("sklearn") + collect_data_files("joblib") + 
+            collect_data_files("scipy") + collect_data_files("numpy"))
 
 # Get the project root directory
 project_root = Path(SPECPATH).parent
