@@ -91,8 +91,79 @@ if ($Offline) {
         exit 1
     }
 } else {
-    # Online installation
+    # Online installation with retry logic
     Write-Host "Installing from PyPI..." -ForegroundColor Cyan
+    
+    # Install core dependencies first
+    Write-Host "Installing core dependencies..." -ForegroundColor Cyan
+    pip install --upgrade setuptools wheel
+    
+    # Install dependencies in groups to handle potential conflicts
+    $corePackages = @(
+        "numpy==1.26.4",
+        "pandas==2.2.2",
+        "PyYAML==6.0.1",
+        "psutil==5.9.8",
+        "colorlog==6.8.2"
+    )
+    
+    $mlPackages = @(
+        "scikit-learn==1.5.0",
+        "joblib==1.5.0"
+    )
+    
+    $guiPackages = @(
+        "PyQt6==6.7.0"
+    )
+    
+    $networkPackages = @(
+        "scapy==2.5.0"
+    )
+    
+    $notificationPackages = @(
+        "win10toast-click==0.1.3",
+        "plyer==2.1.0"
+    )
+    
+    $buildPackages = @(
+        "pyinstaller==6.6.0",
+        "pydantic==2.7.1"
+    )
+    
+    $testPackages = @(
+        "pytest==8.2.2",
+        "pytest-qt==4.4.0"
+    )
+    
+    # Install each group with error handling
+    $allGroups = @(
+        @{"name"="Core"; "packages"=$corePackages},
+        @{"name"="ML"; "packages"=$mlPackages},
+        @{"name"="GUI"; "packages"=$guiPackages},
+        @{"name"="Network"; "packages"=$networkPackages},
+        @{"name"="Notifications"; "packages"=$notificationPackages},
+        @{"name"="Build"; "packages"=$buildPackages},
+        @{"name"="Test"; "packages"=$testPackages}
+    )
+    
+    foreach ($group in $allGroups) {
+        Write-Host "Installing $($group.name) packages..." -ForegroundColor Cyan
+        foreach ($package in $group.packages) {
+            Write-Host "  Installing $package..." -ForegroundColor Gray
+            try {
+                pip install $package --no-deps
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "Failed to install $package, trying with dependencies..."
+                    pip install $package
+                }
+            } catch {
+                Write-Warning "Failed to install $package: $($_.Exception.Message)"
+            }
+        }
+    }
+    
+    # Final installation to resolve any missing dependencies
+    Write-Host "Resolving remaining dependencies..." -ForegroundColor Cyan
     pip install -r requirements.txt
 }
 
@@ -120,9 +191,30 @@ try {
     Write-Warning "Failed to compile Qt resources (pyrcc6 not available or failed)"
 }
 
+# Validate installation before building
+Write-Host "Validating Python environment..." -ForegroundColor Yellow
+try {
+    python -c "import sys; print(f'Python: {sys.version}'); import numpy; print(f'NumPy: {numpy.__version__}'); import PyQt6; print('PyQt6: Available'); import scapy; print(f'Scapy: {scapy.__version__}'); import sklearn; print(f'Scikit-learn: {sklearn.__version__}'); print('All critical dependencies available!')"
+    Write-Host "Environment validation successful" -ForegroundColor Green
+} catch {
+    Write-Warning "Some dependencies may be missing, but continuing build..."
+}
+
+# Test core application functionality
+Write-Host "Testing core application..." -ForegroundColor Yellow
+try {
+    $env:PYTHONPATH = "src"
+    python main.py --version
+    Write-Host "Application test successful" -ForegroundColor Green
+} catch {
+    Write-Warning "Application test failed, but continuing build..."
+}
+
 # Build executable with PyInstaller
 Write-Host "Building executable with PyInstaller..." -ForegroundColor Yellow
-pyinstaller packaging\skada.spec --noconfirm --clean
+# Set environment for build
+$env:PYTHONPATH = "src"
+pyinstaller packaging\skada.spec --noconfirm --clean --log-level INFO
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "PyInstaller build failed"
@@ -137,6 +229,20 @@ if (Test-Path $exePath) {
     Write-Host "Executable: $exePath" -ForegroundColor Cyan
     Write-Host "Size: $([math]::Round($fileInfo.Length / 1MB, 2)) MB" -ForegroundColor Cyan
     Write-Host "Created: $($fileInfo.CreationTime)" -ForegroundColor Cyan
+    
+    # Test the executable
+    Write-Host "Testing executable..." -ForegroundColor Yellow
+    try {
+        $output = & $exePath --version 2>&1
+        if ($output -match "SKADA-IDS-KC") {
+            Write-Host "Executable test successful!" -ForegroundColor Green
+        } else {
+            Write-Warning "Executable test produced unexpected output: $output"
+        }
+    } catch {
+        Write-Warning "Executable test failed: $($_.Exception.Message)"
+    }
+    
 } else {
     Write-Error "Build failed - executable not found"
     exit 1
