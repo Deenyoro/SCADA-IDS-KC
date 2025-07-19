@@ -896,11 +896,29 @@ class MainWindow(QMainWindow):
             # Check if system is ready
             status = self.controller.get_status()
             
-            # Check ML model status
-            ml_info = status.get('ml_detector', {})
-            if not ml_info.get('is_loaded', False):
-                QMessageBox.critical(self, "Error", "ML model not loaded. Check model files.")
-                return
+            # Check ML model status and show warnings
+            from scada_ids.ml import get_detector
+            ml_detector = get_detector()
+            ml_load_status = ml_detector.get_load_status()
+            
+            if not ml_load_status.get('can_predict', False):
+                # Show detailed ML warning but allow user to continue
+                error_details = "\n".join(ml_load_status.get('errors', ['Unknown ML loading error']))
+                
+                reply = QMessageBox.question(
+                    self, 
+                    "⚠️ ML Model Warning",
+                    f"ML models are not properly loaded:\n\n{error_details}\n\n"
+                    f"Monitoring will continue but threat detection may be limited.\n\n"
+                    f"Do you want to start monitoring anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+                    
+                self._log_message("WARNING", f"Starting monitoring with ML issues: {error_details}")
             
             # Check interfaces availability
             if not status.get('interfaces', []):
@@ -1002,17 +1020,35 @@ class MainWindow(QMainWindow):
     def _update_system_status(self):
         """Update system status indicators."""
         try:
-            status = self.controller.get_status()
+            # Get detailed ML status
+            from scada_ids.ml import get_detector
+            ml_detector = get_detector()
+            ml_load_status = ml_detector.get_load_status()
             
-            # Update ML model status (you can add a label for this)
-            ml_loaded = status.get('ml_model_loaded', False)
-            if ml_loaded:
-                self._log_message("INFO", "ML model loaded successfully")
+            # Update ML status label with detailed information
+            if ml_load_status.get('can_predict', False):
+                self.ml_status_label.setText("🧠 ML: Ready")
+                self.ml_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #4CAF50; }")
+                self.ml_status_label.setToolTip("ML models loaded and ready for threat detection")
+            elif ml_load_status.get('has_errors', False):
+                errors = ml_load_status.get('errors', [])
+                error_summary = errors[0] if errors else "Unknown error"
+                if len(error_summary) > 50:
+                    error_summary = error_summary[:50] + "..."
+                
+                self.ml_status_label.setText("🧠 ML: Issues")
+                self.ml_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #FFA500; }")
+                self.ml_status_label.setToolTip(f"ML loading issues:\n{chr(10).join(errors)}")
             else:
-                self._log_message("WARNING", "ML model not loaded")
+                self.ml_status_label.setText("🧠 ML: Not Loaded")
+                self.ml_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #F44336; }")
+                self.ml_status_label.setToolTip("ML models not loaded - check installation")
                 
         except Exception as e:
             logger.error(f"Error updating system status: {e}")
+            self.ml_status_label.setText("🧠 ML: Error")
+            self.ml_status_label.setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: #F44336; }")
+            self.ml_status_label.setToolTip(f"Error checking ML status: {e}")
     
     def _update_statistics_from_signal(self, stats: Dict[str, Any]):
         """Update statistics from worker thread signal."""

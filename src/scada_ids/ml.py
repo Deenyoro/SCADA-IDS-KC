@@ -68,6 +68,9 @@ class MLDetector:
         self._prediction_count = 0
         self._error_count = 0
         self._last_error_time = 0.0
+        self._load_errors = []  # Track loading errors
+        self._last_load_attempt = 0.0
+        self._load_status = "not_attempted"  # not_attempted, loading, success, failed
         
         # Expected feature order (must match training data)
         self.expected_features = [
@@ -115,11 +118,18 @@ class MLDetector:
 
     def load_models(self, model_path: Optional[str] = None, scaler_path: Optional[str] = None) -> bool:
         """Load ML model and scaler from joblib files with security validation."""
-        if not ML_LIBRARIES_AVAILABLE:
-            logger.warning("ML libraries not available - using dummy implementations")
-            return self._load_dummy_models()
-        
         with self._lock:
+            self._load_status = "loading"
+            self._last_load_attempt = time.time()
+            self._load_errors.clear()
+            
+            if not ML_LIBRARIES_AVAILABLE:
+                error_msg = "ML libraries not available (scikit-learn, joblib missing)"
+                logger.warning(error_msg)
+                self._load_errors.append(error_msg)
+                self._load_status = "failed"
+                return self._load_dummy_models()
+        
             try:
                 # Use default paths if not provided
                 if model_path is None:
@@ -148,12 +158,16 @@ class MLDetector:
                     else:
                         logger.error(f"Model file validation failed: {model_path}")
                 else:
-                    # Try alternative model paths from existing models directory
+                    # Try alternative model paths - prioritize trained_models folder
                     alt_model_paths = [
-                        self.settings.get_resource_path("models/RandomForest.joblib"),
+                        # First try the trained models (highest priority)
                         self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/RandomForest.joblib"),
                         self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/MLP.joblib"),
-                        self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/XGboost.joblib")
+                        self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/XGboost.joblib"),
+                        # Fallback to any other models
+                        self.settings.get_resource_path("models/RandomForest.joblib"),
+                        self.settings.get_resource_path("models/MLP.joblib"),
+                        self.settings.get_resource_path("models/XGboost.joblib")
                     ]
                     
                     for alt_path in alt_model_paths:
@@ -167,7 +181,9 @@ class MLDetector:
                                 break
                 
                 if not model_loaded:
-                    logger.warning("No valid model file found, using dummy classifier")
+                    error_msg = f"No valid model file found. Checked paths: {model_path}, {', '.join(str(p) for p in alt_model_paths)}"
+                    logger.warning(error_msg)
+                    self._load_errors.append(error_msg)
                     self.model = DummyClassifier()
                     model_hash = "dummy_model"
                     logger.info("Using dummy classifier for testing")
@@ -186,17 +202,28 @@ class MLDetector:
                     else:
                         logger.error(f"Scaler file validation failed: {scaler_path}")
                 else:
-                    # Try alternative scaler path
-                    alt_scaler_path = self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/standard_scaler.joblib")
-                    if alt_scaler_path.exists() and self._validate_model_file(alt_scaler_path):
-                        self.scaler = self._safe_load_joblib(alt_scaler_path)
-                        if self.scaler is not None:
-                            scaler_hash = self._calculate_file_hash(alt_scaler_path)
-                            logger.info(f"Loaded scaler from alternative path: {alt_scaler_path}")
-                            scaler_loaded = True
+                    # Try alternative scaler paths - prioritize trained_models folder
+                    alt_scaler_paths = [
+                        # First try the trained models (highest priority)
+                        self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/standard_scaler.joblib"),
+                        # Fallback to other possible scaler locations
+                        self.settings.get_resource_path("models/standard_scaler.joblib"),
+                        self.settings.get_resource_path("models/scaler.joblib")
+                    ]
+                    
+                    for alt_scaler_path in alt_scaler_paths:
+                        if alt_scaler_path.exists() and self._validate_model_file(alt_scaler_path):
+                            self.scaler = self._safe_load_joblib(alt_scaler_path)
+                            if self.scaler is not None:
+                                scaler_hash = self._calculate_file_hash(alt_scaler_path)
+                                logger.info(f"Loaded scaler from alternative path: {alt_scaler_path}")
+                                scaler_loaded = True
+                                break
                 
                 if not scaler_loaded:
-                    logger.warning("No valid scaler file found, using dummy scaler")
+                    error_msg = f"No valid scaler file found. Checked paths: {scaler_path}, {', '.join(str(p) for p in alt_scaler_paths)}"
+                    logger.warning(error_msg)
+                    self._load_errors.append(error_msg)
                     self.scaler = DummyScaler()
                     scaler_hash = "dummy_scaler"
                     logger.info("Using dummy scaler for testing")
@@ -209,16 +236,23 @@ class MLDetector:
                 # Validate model compatibility
                 validation_result = self._validate_model_compatibility()
                 if not validation_result:
-                    logger.error("Model compatibility validation failed")
+                    error_msg = "Model compatibility validation failed"
+                    logger.error(error_msg)
+                    self._load_errors.append(error_msg)
+                    self._load_status = "failed"
                     return False
                 
                 self.is_loaded = True
                 self._error_count = 0  # Reset error count on successful load
+                self._load_status = "success"
                 logger.info("ML models loaded and validated successfully")
                 return True
                 
             except Exception as e:
-                logger.error(f"Failed to load ML models: {e}")
+                error_msg = f"Failed to load ML models: {e}"
+                logger.error(error_msg)
+                self._load_errors.append(error_msg)
+                self._load_status = "failed"
                 self.is_loaded = False
                 return False
 
@@ -686,6 +720,20 @@ class MLDetector:
             self._cleanup_current_models()
         except Exception:
             pass  # Ignore errors during cleanup
+    
+    def get_load_status(self) -> Dict[str, Any]:
+        """Get detailed ML loading status and error information."""
+        with self._lock:
+            return {
+                "status": self._load_status,
+                "last_attempt": self._last_load_attempt,
+                "errors": self._load_errors.copy(),
+                "is_loaded": self.is_loaded,
+                "has_errors": len(self._load_errors) > 0,
+                "can_predict": self.is_loaded and self.model is not None,
+                "ml_libraries_available": ML_LIBRARIES_AVAILABLE,
+                "numpy_available": NUMPY_AVAILABLE
+            }
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get detector statistics and performance metrics."""
