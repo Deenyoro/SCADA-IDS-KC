@@ -21,11 +21,11 @@ on:
 env:
   PYTHON_VERSION: ${{ github.event.inputs.python_version || '3.11.9' }}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # Wine build removed from GitHub Actions - not working reliably
-  # Local build_windows.sh script still available for local development
-
-  # Primary Windows build using native Windows environment
   build-windows:
     runs-on: windows-latest
     steps:
@@ -46,334 +46,10 @@ jobs:
     - name: Build Windows executable with PyInstaller
       run: |
         echo "🚀 Building Windows executable with native PyInstaller..."
-
+        
         # Create dist and logs directories
         New-Item -ItemType Directory -Force -Path dist, logs, build
-
-        # Build with PyInstaller using onefile approach
-        pyinstaller --onefile `
-          --name SCADA-IDS-KC `
-          --paths src `
-          --hidden-import=scada_ids `
-          --hidden-import=scada_ids.settings `
-          --hidden-import=scada_ids.controller `
-          --hidden-import=scada_ids.capture `
-          --hidden-import=scada_ids.features `
-          --hidden-import=scada_ids.ml `
-          --hidden-import=scada_ids.notifier `
-          --hidden-import=ui `
-          --hidden-import=ui.main_window `
-          --hidden-import=pydoc `
-          --collect-all sklearn `
-          --collect-all scipy `
-          --collect-all numpy `
-          --collect-all joblib `
-          --add-data "config;config" `
-          --add-data "src;src" `
-          --noconfirm `
-          --clean `
-          --log-level DEBUG `
-          --distpath dist `
-          --workpath build `
-          main.py
-    - name: Verify Windows executable
-      run: |
-        echo "📋 Verifying Windows executable..."
-        if (Test-Path "dist/SCADA-IDS-KC.exe") {
-          echo "✅ Executable created successfully"
-          $size = (Get-Item "dist/SCADA-IDS-KC.exe").Length
-          echo "📊 File size: $size bytes"
-
-          # Test if it's a valid PE executable
-          $fileInfo = Get-Command "dist/SCADA-IDS-KC.exe" -ErrorAction SilentlyContinue
-          if ($fileInfo) {
-            echo "✅ Valid Windows PE executable"
-          } else {
-            echo "⚠️ File exists but may not be a valid executable"
-          }
-        } else {
-          echo "❌ Executable not found"
-          echo "Contents of dist/:"
-          Get-ChildItem dist/ -ErrorAction SilentlyContinue
-          exit 1
-        }
-
-    - name: Create build info
-      run: |
-        echo "Creating build information file..."
-        @"
-        SCADA-IDS-KC Windows Native Build Information
-        ==========================================
-
-        Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
-        Git Commit: ${{ github.sha }}
-        Git Branch: ${{ github.ref_name }}
-        Python Version: $(python --version)
-        Build Environment: GitHub Actions Windows Server 2022
-        Build Method: Native Windows PyInstaller (not Wine cross-compilation)
-
-        File Information:
-        $(if (Test-Path "dist/SCADA-IDS-KC.exe") {
-          "Size: $((Get-Item 'dist/SCADA-IDS-KC.exe').Length) bytes"
-          "Created: $((Get-Item 'dist/SCADA-IDS-KC.exe').CreationTime)"
-        } else {
-          "Executable not found"
-        })
-
-        Build Triggered By: ${{ github.event_name }}
-        Actor: ${{ github.actor }}
-
-        PyInstaller Version: $(pip show pyinstaller | Select-String "Version")
-        "@  | Out-File -FilePath "dist/BUILD_INFO.txt" -Encoding UTF8
-
-    - name: Upload Windows executable
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-executable-${{ github.sha }}
-        path: |
-          dist/SCADA-IDS-KC.exe
-          dist/BUILD_INFO.txt
-        retention-days: 30
-        if-no-files-found: error
-
-    - name: Upload build logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-logs-${{ github.sha }}
-        path: |
-          build/
-        retention-days: 7
-        if-no-files-found: warn
-        fi
-
-        exit $BUILD_EXIT_CODE
         
-    - name: Verify Windows PE executable
-      if: always()
-      run: |
-        echo "📋 Verifying build results..."
-
-        # Check if build was successful
-        if [ "${BUILD_EXIT_CODE:-1}" -eq 0 ]; then
-          echo "✅ Build reported success, verifying executable..."
-
-          if [ -f "dist/SCADA-IDS-KC.exe" ]; then
-            echo "✅ Executable found"
-            ls -lh dist/SCADA-IDS-KC.exe
-            file_type=$(file dist/SCADA-IDS-KC.exe)
-            echo "📊 File type: $file_type"
-            echo "📊 File size: $(ls -lh dist/SCADA-IDS-KC.exe | awk '{print $5}')"
-
-            # Verify it's a TRUE Windows PE executable
-            if echo "$file_type" | grep -q "PE32.*Windows"; then
-              echo "🎉 SUCCESS: TRUE Windows PE executable created!"
-              echo "EXECUTABLE_VERIFIED=true" >> $GITHUB_ENV
-            else
-              echo "❌ FAILED: Not a Windows PE executable!"
-              echo "File type: $file_type"
-              echo "EXECUTABLE_VERIFIED=false" >> $GITHUB_ENV
-            fi
-          else
-            echo "❌ Executable not found despite successful build"
-            echo "EXECUTABLE_VERIFIED=false" >> $GITHUB_ENV
-            ls -la dist/ || echo "dist/ directory not found"
-          fi
-        else
-          echo "❌ Build failed with exit code: ${BUILD_EXIT_CODE:-unknown}"
-          echo "EXECUTABLE_VERIFIED=false" >> $GITHUB_ENV
-
-          # Still check what files were created for debugging
-          echo "📁 Checking for any generated files..."
-          ls -la dist/ 2>/dev/null || echo "dist/ directory not found"
-          ls -la build/ 2>/dev/null || echo "build/ directory not found"
-          ls -la logs/ 2>/dev/null || echo "logs/ directory not found"
-        fi
-        
-    - name: Create build info
-      if: always()
-      run: |
-        echo "Creating build information file..."
-        mkdir -p dist/
-
-        cat > dist/BUILD_INFO.txt << EOF
-        SCADA-IDS-KC Windows PE Build Information
-        ========================================
-
-        Build Date: $(date -u)
-        Git Commit: ${{ github.sha }}
-        Git Branch: ${{ github.ref_name }}
-        Python Version: ${{ env.PYTHON_VERSION }}
-        Build Environment: GitHub Actions Ubuntu 22.04 + Wine + Windows Python
-        Build Method: TRUE Windows PE cross-compilation (not fake Linux rename!)
-
-        Build Status: $([ "${BUILD_EXIT_CODE:-1}" -eq 0 ] && echo "SUCCESS" || echo "FAILED (exit code: ${BUILD_EXIT_CODE:-unknown})")
-        Executable Verified: ${EXECUTABLE_VERIFIED:-false}
-
-        File Information:
-        $(if [ -f "dist/SCADA-IDS-KC.exe" ]; then ls -lh dist/SCADA-IDS-KC.exe; file dist/SCADA-IDS-KC.exe; else echo "Executable not found"; fi)
-
-        Build Triggered By: ${{ github.event_name }}
-        Actor: ${{ github.actor }}
-
-        Environment Details:
-        Wine Version: $(wine --version 2>/dev/null || echo "N/A")
-        Windows Python: $(wine python.exe --version 2>/dev/null || echo "N/A")
-
-        Generated Files:
-        $(find . -name "*.exe" -o -name "*.log" -o -name "*.txt" | head -20 || echo "No files found")
-        EOF
-
-        echo "Build info created successfully"
-        
-    - name: Prepare artifacts for upload
-      if: always()
-      run: |
-        echo "📦 Preparing artifacts for upload..."
-
-        # Create artifacts directory
-        mkdir -p artifacts/executables artifacts/logs artifacts/debug
-
-        # Copy executable if it exists
-        if [ -f "dist/SCADA-IDS-KC.exe" ]; then
-          cp dist/SCADA-IDS-KC.exe artifacts/executables/
-          echo "✅ Executable copied to artifacts"
-        else
-          echo "❌ No executable found to copy"
-        fi
-
-        # Copy build info (always exists now)
-        cp dist/BUILD_INFO.txt artifacts/executables/ 2>/dev/null || echo "No BUILD_INFO.txt found"
-
-        # Copy any zip files
-        cp dist/*.zip artifacts/executables/ 2>/dev/null || echo "No zip files found"
-
-        # Copy all logs
-        cp -r logs/* artifacts/logs/ 2>/dev/null || echo "No logs directory found"
-
-        # Copy build reports
-        cp build_report_*.txt artifacts/logs/ 2>/dev/null || echo "No build reports found"
-
-        # Copy error reports and failure markers
-        cp logs/error_report_*.txt artifacts/debug/ 2>/dev/null || echo "No error reports found"
-        cp build_failure.env artifacts/debug/ 2>/dev/null || echo "No failure marker found"
-
-        # Copy PyInstaller build directory for debugging
-        if [ -d "build" ]; then
-          # Copy only log files and important debug info, not the entire build
-          find build -name "*.log" -exec cp {} artifacts/debug/ \; 2>/dev/null || true
-          find build -name "warn-*.txt" -exec cp {} artifacts/debug/ \; 2>/dev/null || true
-        fi
-
-        # Create a summary of what we're uploading
-        echo "=== Artifact Summary ===" > artifacts/ARTIFACT_SUMMARY.txt
-        echo "Build Date: $(date)" >> artifacts/ARTIFACT_SUMMARY.txt
-        echo "Build Exit Code: ${BUILD_EXIT_CODE:-unknown}" >> artifacts/ARTIFACT_SUMMARY.txt
-        echo "Executable Verified: ${EXECUTABLE_VERIFIED:-false}" >> artifacts/ARTIFACT_SUMMARY.txt
-        echo "" >> artifacts/ARTIFACT_SUMMARY.txt
-        echo "Files included:" >> artifacts/ARTIFACT_SUMMARY.txt
-        find artifacts -type f | sort >> artifacts/ARTIFACT_SUMMARY.txt
-
-        echo "📦 Artifacts prepared successfully"
-
-    - name: Upload build artifacts (executables)
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-executable-${{ github.sha }}
-        path: |
-          artifacts/executables/
-          artifacts/ARTIFACT_SUMMARY.txt
-        retention-days: 30
-        if-no-files-found: warn
-
-    - name: Upload build logs and debug info
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-logs-${{ github.sha }}
-        path: |
-          artifacts/logs/
-          artifacts/debug/
-          artifacts/ARTIFACT_SUMMARY.txt
-        retention-days: 7
-        if-no-files-found: warn
-        
-    - name: Create release
-      if: (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true') && env.EXECUTABLE_VERIFIED == 'true'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          dist/SCADA-IDS-KC.exe
-          dist/BUILD_INFO.txt
-          dist/*.zip
-        name: SCADA-IDS-KC ${{ github.ref_name }}
-        body: |
-          ## SCADA-IDS-KC Windows Release
-          
-          ### 🚀 Features
-          - Network Intrusion Detection System
-          - Machine Learning-based SYN flood detection
-          - Cross-platform GUI with PyQt6
-          - Real-time packet capture with Scapy
-          - System notifications
-          
-          ### 📦 Installation
-          1. Download `SCADA-IDS-KC.exe`
-          2. Install [Npcap](https://npcap.com/) for packet capture
-          3. Run the executable
-          
-          ### 🧪 System Requirements
-          - Windows 10/11 (64-bit)
-          - Administrator privileges (for packet capture)
-          - Npcap driver
-          
-          ### 📋 Build Information
-          - Built with Python ${{ env.PYTHON_VERSION }}
-          - TRUE Windows PE executable (Wine + Windows Python cross-compilation)
-          - Built on Ubuntu 22.04 with modern Wine 10.0+
-          - Commit: ${{ github.sha }}
-          - Build Date: $(date -u)
-          
-          ### 🔧 Usage
-          ```cmd
-          # GUI Mode
-          SCADA-IDS-KC.exe
-          
-          # CLI Mode
-          SCADA-IDS-KC.exe --cli --status
-          SCADA-IDS-KC.exe --help
-          ```
-        draft: false
-        prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Primary Windows build using native Windows environment
-  build-windows:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      run: |
-        echo "📦 Installing Python dependencies..."
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install "pyinstaller>=6.14,<7" pyinstaller-hooks-contrib
-
-    - name: Build Windows executable with PyInstaller
-      run: |
-        echo "🚀 Building Windows executable with native PyInstaller..."
-
-        # Create dist and logs directories
-        New-Item -ItemType Directory -Force -Path dist, logs, build
-
         # Build with PyInstaller using onefile approach
         pyinstaller --onefile `
           --name SCADA-IDS-KC `
@@ -408,7 +84,7 @@ jobs:
           echo "✅ Executable created successfully"
           $size = (Get-Item "dist/SCADA-IDS-KC.exe").Length
           echo "📊 File size: $size bytes"
-
+          
           # Test if it's a valid PE executable
           $fileInfo = Get-Command "dist/SCADA-IDS-KC.exe" -ErrorAction SilentlyContinue
           if ($fileInfo) {
@@ -429,25 +105,25 @@ jobs:
         @"
         SCADA-IDS-KC Windows Native Build Information
         ==========================================
-
+        
         Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
         Git Commit: ${{ github.sha }}
         Git Branch: ${{ github.ref_name }}
         Python Version: $(python --version)
         Build Environment: GitHub Actions Windows Server 2022
-        Build Method: Native Windows PyInstaller (not Wine cross-compilation)
-
+        Build Method: Native Windows PyInstaller
+        
         File Information:
-        $(if (Test-Path "dist/SCADA-IDS-KC.exe") {
+        $(if (Test-Path "dist/SCADA-IDS-KC.exe") { 
           "Size: $((Get-Item 'dist/SCADA-IDS-KC.exe').Length) bytes"
           "Created: $((Get-Item 'dist/SCADA-IDS-KC.exe').CreationTime)"
-        } else {
-          "Executable not found"
+        } else { 
+          "Executable not found" 
         })
-
+        
         Build Triggered By: ${{ github.event_name }}
         Actor: ${{ github.actor }}
-
+        
         PyInstaller Version: $(pip show pyinstaller | Select-String "Version")
         "@  | Out-File -FilePath "dist/BUILD_INFO.txt" -Encoding UTF8
 
@@ -460,7 +136,7 @@ jobs:
           dist/BUILD_INFO.txt
         retention-days: 30
         if-no-files-found: error
-
+    
     - name: Upload build logs
       if: always()
       uses: actions/upload-artifact@v4
@@ -489,29 +165,29 @@ jobs:
         
         # Check if executable exists
         if (Test-Path "dist/SCADA-IDS-KC.exe") {
-          Write-Host "✅ Executable found"
-          Get-ChildItem "dist/SCADA-IDS-KC.exe" | Format-List
+          echo "✅ Executable found"
+          Get-ChildItem "dist/SCADA-IDS-KC.exe" | Format-List Name, Length, CreationTime, LastWriteTime, VersionInfo
+          
+          echo "🚀 Testing version command..."
+          try {
+            $output = & "dist/SCADA-IDS-KC.exe" --version 2>&1
+            echo "✅ Version command successful: $output"
+          } catch {
+            echo "⚠️ Version command failed: $_"
+          }
+          
+          echo "📖 Testing help command..."
+          try {
+            & "dist/SCADA-IDS-KC.exe" --help | Out-Null
+            echo "✅ Help command successful"
+          } catch {
+            echo "⚠️ Help command failed: $_"
+          }
+          
+          echo "🎉 Windows testing completed"
         } else {
-          Write-Host "❌ Executable not found"
+          echo "❌ Executable not found"
+          echo "Contents of dist/:"
+          Get-ChildItem dist/ -ErrorAction SilentlyContinue
           exit 1
         }
-        
-        # Test version command (should work without admin privileges)
-        Write-Host "🚀 Testing version command..."
-        try {
-          $output = & "dist/SCADA-IDS-KC.exe" --version 2>&1
-          Write-Host "✅ Version command successful: $output"
-        } catch {
-          Write-Host "⚠️ Version command failed: $_"
-        }
-        
-        # Test help command
-        Write-Host "📖 Testing help command..."
-        try {
-          $output = & "dist/SCADA-IDS-KC.exe" --help 2>&1
-          Write-Host "✅ Help command successful"
-        } catch {
-          Write-Host "⚠️ Help command failed: $_"
-        }
-        
-        Write-Host "🎉 Windows testing completed"
