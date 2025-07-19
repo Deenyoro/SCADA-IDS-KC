@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SKADA-IDS-KC - Network Intrusion Detection System
+SCADA-IDS-KC - Network Intrusion Detection System
 Main application entry point with CLI and GUI modes.
 """
 
@@ -22,7 +22,7 @@ try:
     from skada_ids.ml import get_detector
     from skada_ids.notifier import get_notifier
 except ImportError as e:
-    print(f"Error importing SKADA-IDS modules: {e}")
+    print(f"Error importing SCADA-IDS modules: {e}")
     print("Make sure you're running from the project root directory")
     sys.exit(1)
 
@@ -60,7 +60,7 @@ def setup_logging(log_level: str = "INFO", log_file: str = None):
 
 
 def check_system_requirements():
-    """Check if system meets requirements for running SKADA-IDS-KC."""
+    """Check if system meets requirements for running SCADA-IDS-KC."""
     issues = []
     
     # Check Python version
@@ -102,7 +102,7 @@ def run_gui_mode():
         
         # Create Qt application
         app = QApplication(sys.argv)
-        app.setApplicationName("SKADA-IDS-KC")
+        app.setApplicationName("SCADA-IDS-KC")
         app.setApplicationVersion("1.0.0")
         app.setOrganizationName("SKADA Security")
         
@@ -160,7 +160,7 @@ def run_cli_mode(args):
 
 def print_system_status(status):
     """Print system status information."""
-    print("=== SKADA-IDS-KC System Status ===")
+    print("=== SCADA-IDS-KC System Status ===")
     print(f"Running: {'Yes' if status['is_running'] else 'No'}")
     print(f"ML Model Loaded: {'Yes' if status['ml_model_loaded'] else 'No'}")
     print(f"Notifications Enabled: {'Yes' if status['notifications_enabled'] else 'No'}")
@@ -190,15 +190,15 @@ def test_ml_models():
         
         # Check if models are loaded
         if not detector.is_model_loaded():
-            print("❌ ML models not loaded")
+            print("ERROR: ML models not loaded")
             return 1
         
         # Get model info
         info = detector.get_model_info()
-        print(f"✅ ML Model loaded: {info['model_type']}")
-        print(f"✅ Scaler available: {info['has_scaler']}")
-        print(f"✅ Expected features: {info['expected_features']}")
-        print(f"✅ Threshold: {info['threshold']}")
+        print(f"SUCCESS: ML Model loaded: {info['model_type']}")
+        print(f"SUCCESS: Scaler available: {info['has_scaler']}")
+        print(f"SUCCESS: Expected features: {info['expected_features']}")
+        print(f"SUCCESS: Threshold: {info['threshold']}")
         
         # Test prediction with dummy data
         dummy_features = {
@@ -225,14 +225,14 @@ def test_ml_models():
         }
         
         probability, is_threat = detector.predict(dummy_features)
-        print(f"✅ Test prediction: probability={probability:.3f}, threat={is_threat}")
+        print(f"SUCCESS: Test prediction: probability={probability:.3f}, threat={is_threat}")
         
-        print("✅ ML model test completed successfully")
+        print("SUCCESS: ML model test completed successfully")
         return 0
         
     except Exception as e:
         logger.error(f"ML model test failed: {e}")
-        print(f"❌ ML model test failed: {e}")
+        print(f"ERROR: ML model test failed: {e}")
         return 1
 
 
@@ -254,14 +254,14 @@ def test_notifications():
         success = notifier.test_notification()
         
         if success:
-            print("✅ Test notification sent successfully")
+            print("SUCCESS: Test notification sent successfully")
             return 0
         else:
-            print("❌ Test notification failed")
+            print("ERROR: Test notification failed")
             return 1
             
     except Exception as e:
-        print(f"❌ Notification test failed: {e}")
+        print(f"ERROR: Notification test failed: {e}")
         return 1
 
 
@@ -277,7 +277,7 @@ def run_monitoring_cli(controller, args):
             # Auto-select first available interface
             interfaces = controller.get_available_interfaces()
             if not interfaces:
-                print("❌ No network interfaces available")
+                print("ERROR: No network interfaces available")
                 return 1
             interface = interfaces[0]
             print(f"Auto-selected interface: {interface}")
@@ -288,10 +288,10 @@ def run_monitoring_cli(controller, args):
         
         # Start monitoring
         if not controller.start(interface):
-            print("❌ Failed to start monitoring")
+            print("ERROR: Failed to start monitoring")
             return 1
         
-        print("✅ Monitoring started. Press Ctrl+C to stop.")
+        print("SUCCESS: Monitoring started. Press Ctrl+C to stop.")
         
         # Monitor for specified duration or until interrupted
         import time
@@ -310,7 +310,7 @@ def run_monitoring_cli(controller, args):
                 time.sleep(1)
                 
         except KeyboardInterrupt:
-            print("\n⏹️ Stopping monitoring...")
+            print("\nSTOPPING: Stopping monitoring...")
         
         # Stop monitoring
         controller.stop()
@@ -326,14 +326,14 @@ def run_monitoring_cli(controller, args):
         
     except Exception as e:
         logger.error(f"Monitoring error: {e}")
-        print(f"❌ Monitoring error: {e}")
+        print(f"ERROR: Monitoring error: {e}")
         return 1
 
 
 def main():
     """Main application entry point."""
     parser = argparse.ArgumentParser(
-        description="SKADA-IDS-KC - Network Intrusion Detection System",
+        description="SCADA-IDS-KC - Network Intrusion Detection System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -367,7 +367,7 @@ Examples:
                        default='INFO', help='Logging level')
     parser.add_argument('--config', type=str,
                        help='Configuration file path')
-    parser.add_argument('--version', action='version', version='SKADA-IDS-KC 1.0.0')
+    parser.add_argument('--version', action='version', version='SCADA-IDS-KC 1.0.0')
     
     args = parser.parse_args()
     
@@ -382,14 +382,14 @@ Examples:
         else:
             get_settings()  # Load default config
         
-        logger.info("SKADA-IDS-KC starting...")
+        logger.info("SCADA-IDS-KC starting...")
         
         # Check system requirements
         issues = check_system_requirements()
         if issues:
             print("System requirements not met:")
             for issue in issues:
-                print(f"  ❌ {issue}")
+                print(f"  ERROR: {issue}")
             return 1
         
         # Run in appropriate mode
@@ -403,7 +403,7 @@ Examples:
         return 0
     except Exception as e:
         logger.error(f"Application error: {e}")
-        print(f"❌ Application error: {e}")
+        print(f"ERROR: Application error: {e}")
         return 1
 
 

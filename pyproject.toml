@@ -3,16 +3,16 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "skada-ids-kc"
+name = "scada-ids-kc"
 version = "1.0.0"
 description = "Network Intrusion Detection System with ML-based SYN flood detection"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-    {name = "SKADA-IDS-KC Team", email = "team@skada-ids-kc.org"}
+    {name = "SCADA-IDS-KC Team", email = "team@scada-ids-kc.org"}
 ]
 maintainers = [
-    {name = "SKADA-IDS-KC Team", email = "team@skada-ids-kc.org"}
+    {name = "SCADA-IDS-KC Team", email = "team@scada-ids-kc.org"}
 ]
 keywords = ["ids", "intrusion-detection", "network-security", "syn-flood", "machine-learning"]
 classifiers = [
@@ -57,13 +57,13 @@ build = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/skada-ids-kc/skada-ids-kc"
-Documentation = "https://github.com/skada-ids-kc/skada-ids-kc/docs"
-Repository = "https://github.com/skada-ids-kc/skada-ids-kc.git"
-Issues = "https://github.com/skada-ids-kc/skada-ids-kc/issues"
+Homepage = "https://github.com/scada-ids-kc/scada-ids-kc"
+Documentation = "https://github.com/scada-ids-kc/scada-ids-kc/docs"
+Repository = "https://github.com/scada-ids-kc/scada-ids-kc.git"
+Issues = "https://github.com/scada-ids-kc/scada-ids-kc/issues"
 
 [project.scripts]
-skada-ids-kc = "ui.main_window:main"
+scada-ids-kc = "ui.main_window:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -69,7 +69,7 @@ class IDSWorkerThread(QThread):
 
 
 class MainWindow(QMainWindow):
-    """Main application window for SKADA-IDS-KC."""
+    """Main application window for SCADA-IDS-KC."""
     
     def __init__(self):
         super().__init__()
@@ -382,7 +382,7 @@ class MainWindow(QMainWindow):
                 
                 # Update tray icon tooltip
                 if hasattr(self, 'tray_icon'):
-                    self.tray_icon.setToolTip(f"SKADA-IDS-KC - Monitoring {interface}")
+                    self.tray_icon.setToolTip(f"SCADA-IDS-KC - Monitoring {interface}")
             else:
                 QMessageBox.critical(self, "Error", "Failed to start monitoring. Check permissions and interface availability.")
                 
@@ -410,7 +410,7 @@ class MainWindow(QMainWindow):
             
             # Update tray icon tooltip
             if hasattr(self, 'tray_icon'):
-                self.tray_icon.setToolTip("SKADA-IDS-KC - Stopped")
+                self.tray_icon.setToolTip("SCADA-IDS-KC - Stopped")
                 
         except Exception as e:
             logger.error(f"Error stopping monitoring: {e}")
@@ -549,7 +549,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'tray_icon'):
             self.hide()
             self.tray_icon.showMessage(
-                "SKADA-IDS-KC",
+                "SCADA-IDS-KC",
                 "Application minimized to tray",
                 QSystemTrayIcon.MessageIcon.Information,
                 2000
@@ -575,10 +575,10 @@ class MainWindow(QMainWindow):
         <li>Cross-platform notifications</li>
         <li>Configurable settings</li>
         </ul>
-        <p>© 2025 SKADA-IDS-KC Team</p>
+        <p>© 2025 SCADA-IDS-KC Team</p>
         """
         
-        QMessageBox.about(self, "About SKADA-IDS-KC", about_text)
+        QMessageBox.about(self, "About SCADA-IDS-KC", about_text)
     
     def closeEvent(self, event):
         """Handle window close event."""
@@ -616,9 +616,9 @@ def main():
     app.setQuitOnLastWindowClosed(False)  # Keep running when minimized to tray
     
     # Set application properties
-    app.setApplicationName("SKADA-IDS-KC")
+    app.setApplicationName("SCADA-IDS-KC")
     app.setApplicationVersion("1.0.0")
-    app.setOrganizationName("SKADA-IDS-KC Team")
+    app.setOrganizationName("SCADA-IDS-KC Team")
     
     # Create and show main window
     window = MainWindow()

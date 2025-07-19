@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller specification file for SKADA-IDS-KC Windows Cross-compilation
+PyInstaller specification file for SCADA-IDS-KC Windows Cross-compilation
 Optimized for building Windows executables from Linux
 """
 
@@ -55,11 +55,14 @@ hiddenimports = [
     'scapy.all',
     'scapy.layers.inet',
     'scapy.layers.l2',
+    'sklearn',
     'sklearn.ensemble',
     'sklearn.preprocessing',
     'sklearn.base',
     'sklearn.tree',
     'sklearn.neural_network',
+    'sklearn.utils',
+    'sklearn.metrics',
     'joblib',
     
     # GUI essentials
@@ -156,7 +159,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='SKADA-IDS-KC.exe',  # Force .exe extension for Windows
+    name='SCADA-IDS-KC.exe',  # Force .exe extension for Windows
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -168,7 +171,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(icon_file) if icon_file.exists() else None,
+    icon=None,
     # Force Windows executable extension
     append_pkg=False,
 )
@@ -178,9 +181,9 @@ exe.version_info = {
     'version': (1, 0, 0, 0),
     'file_version': (1, 0, 0, 0), 
     'product_version': (1, 0, 0, 0),
-    'file_description': 'SKADA-IDS-KC Network Intrusion Detection System',
-    'product_name': 'SKADA-IDS-KC',
-    'company_name': 'SKADA-IDS-KC Team',
-    'copyright': '© 2025 SKADA-IDS-KC Team',
-    'original_filename': 'SKADA-IDS-KC.exe',
+    'file_description': 'SCADA-IDS-KC Network Intrusion Detection System',
+    'product_name': 'SCADA-IDS-KC',
+    'company_name': 'SCADA-IDS-KC Team',
+    'copyright': '© 2025 SCADA-IDS-KC Team',
+    'original_filename': 'SCADA-IDS-KC.exe',
 }

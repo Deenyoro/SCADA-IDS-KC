@@ -1,4 +1,4 @@
-# SKADA-IDS-KC Windows Build Script
+# SCADA-IDS-KC Windows Build Script
 # PowerShell script for building the application on Windows with offline support
 
 param(
@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
-Write-Host "=== SKADA-IDS-KC Windows Build Script ===" -ForegroundColor Green
+Write-Host "=== SCADA-IDS-KC Windows Build Script ===" -ForegroundColor Green
 Write-Host "Build configuration:" -ForegroundColor Yellow
 Write-Host "  Download Dependencies: $DownloadDeps" -ForegroundColor Gray
 Write-Host "  Install Dependencies: $InstallDeps" -ForegroundColor Gray
@@ -142,7 +142,7 @@ if ($Offline) {
     )
     
     $notificationPackages = @(
-        "win10toast-click==0.1.3",
+        "win10toast-click==0.1.2",
         "plyer==2.1.0"
     )
     
@@ -178,7 +178,7 @@ if ($Offline) {
                     pip install $package
                 }
             } catch {
-                Write-Warning "Failed to install $package: $($_.Exception.Message)"
+                Write-Warning "Failed to install ${package}: $($_.Exception.Message)"
             }
         }
     }
@@ -235,7 +235,7 @@ try {
 Write-Host "Building executable with PyInstaller..." -ForegroundColor Yellow
 # Set environment for build
 $env:PYTHONPATH = "src"
-pyinstaller packaging\skada.spec --noconfirm --clean --log-level INFO
+pyinstaller packaging\skada_windows.spec --noconfirm --clean --log-level INFO
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "PyInstaller build failed"
@@ -243,7 +243,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Verify build
-$exePath = "dist\SKADA-IDS-KC.exe"
+$exePath = "dist\SCADA-IDS-KC.exe"
 if (Test-Path $exePath) {
     $fileInfo = Get-Item $exePath
     Write-Host "Build completed successfully!" -ForegroundColor Green
@@ -269,7 +269,7 @@ if (Test-Path $exePath) {
     Write-Host "Testing executable..." -ForegroundColor Yellow
     try {
         $output = & $exePath --version 2>&1
-        if ($output -match "SKADA-IDS-KC") {
+        if ($output -match "SCADA-IDS-KC") {
             Write-Host "Executable test successful!" -ForegroundColor Green
             Write-Host "Output: $output" -ForegroundColor Gray
         } else {
@@ -299,7 +299,7 @@ if (Test-Path $nsisScript) {
 # Create installer if requested
 if ($CreateInstaller) {
     Write-Host "Creating installer package..." -ForegroundColor Yellow
-    $zipPath = "dist\SKADA-IDS-KC-Windows.zip"
+    $zipPath = "dist\SCADA-IDS-KC-Windows.zip"
     try {
         if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
         Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -313,6 +313,6 @@ if ($CreateInstaller) {
 Write-Host "=== Build Complete ===" -ForegroundColor Green
 Write-Host ""  
 Write-Host "Quick start commands:" -ForegroundColor Yellow
-Write-Host "  .\dist\SKADA-IDS-KC.exe --help          # Show help" -ForegroundColor White
-Write-Host "  .\dist\SKADA-IDS-KC.exe --cli --status  # Check status" -ForegroundColor White
-Write-Host "  .\dist\SKADA-IDS-KC.exe                 # Run GUI mode" -ForegroundColor White
+Write-Host "  .\dist\SCADA-IDS-KC.exe --help          # Show help" -ForegroundColor White
+Write-Host "  .\dist\SCADA-IDS-KC.exe --cli --status  # Check status" -ForegroundColor White
+Write-Host "  .\dist\SCADA-IDS-KC.exe                 # Run GUI mode" -ForegroundColor White
