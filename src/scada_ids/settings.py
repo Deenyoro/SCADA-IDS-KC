@@ -278,6 +278,72 @@ class AppSettings(BaseSettings):
         env_nested_delimiter = "__"
         case_sensitive = False
 
+    def get_section(self, section_name: str) -> Optional[Dict[str, Any]]:
+        """Get a configuration section by name."""
+        try:
+            if section_name == 'packet_logging':
+                # Handle packet logging section specially since it's not a standard setting
+                sikc = get_sikc_config()
+                if sikc._config.has_section('packet_logging'):
+                    return sikc.get_section('packet_logging')
+                else:
+                    # Return default packet logging config
+                    return {
+                        'enabled': False,
+                        'log_level': 'INFO',
+                        'directory': 'logs/packet_analysis',
+                        'file_format': 'packet_analysis_{timestamp}.log',
+                        'format': 'JSON',
+                        'max_file_size': 52428800,
+                        'backup_count': 10,
+                        'include_packets': True,
+                        'include_ml_analysis': True,
+                        'include_features': True,
+                        'include_performance': True,
+                        'timestamp_precision': 'milliseconds'
+                    }
+            elif hasattr(self, section_name):
+                # Return existing section as dict
+                section = getattr(self, section_name)
+                if hasattr(section, '__dict__'):
+                    return section.__dict__.copy()
+                else:
+                    return section
+            else:
+                logger.warning(f"Unknown section: {section_name}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting section {section_name}: {e}")
+            return None
+
+    def set_section(self, section_name: str, config: Dict[str, Any]):
+        """Set a configuration section."""
+        try:
+            if section_name == 'packet_logging':
+                # Handle packet logging section specially
+                sikc = get_sikc_config()
+                if not sikc._config.has_section('packet_logging'):
+                    sikc._config.add_section('packet_logging')
+
+                for key, value in config.items():
+                    sikc.set('packet_logging', key, str(value))
+
+                # Save the configuration
+                sikc.save()
+                logger.info(f"Updated packet_logging configuration")
+            elif hasattr(self, section_name):
+                # Update existing section
+                section = getattr(self, section_name)
+                if hasattr(section, '__dict__'):
+                    section.__dict__.update(config)
+                else:
+                    setattr(self, section_name, config)
+                logger.info(f"Updated {section_name} configuration")
+            else:
+                logger.warning(f"Cannot set unknown section: {section_name}")
+        except Exception as e:
+            logger.error(f"Error setting section {section_name}: {e}")
+
     @classmethod
     def load_from_yaml(cls, config_path: Optional[str] = None) -> "AppSettings":
         """Load settings from SIKC.cfg first, then YAML file with environment variable overrides."""

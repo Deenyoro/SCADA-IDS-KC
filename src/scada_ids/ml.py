@@ -144,10 +144,26 @@ class MLDetector:
                 
                 logger.info(f"Loading ML model from: {model_path}")
                 logger.info(f"Loading scaler from: {scaler_path}")
+
+
                 
                 # Try to load model from primary location
                 model_loaded = False
                 model_hash = None
+
+                # Define alternative model paths upfront to avoid variable scope issues
+                alt_model_paths = [
+                    # First try the trained models (highest priority)
+                    self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/RandomForest.joblib"),
+                    self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/MLP.joblib"),
+                    self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/XGboost.joblib"),
+                    # Fallback to any other models
+                    self.settings.get_resource_path("models/RandomForest.joblib"),
+                    self.settings.get_resource_path("models/MLP.joblib"),
+                    self.settings.get_resource_path("models/XGboost.joblib")
+                ]
+
+                # Try primary model path first
                 if model_path.exists():
                     if self._validate_model_file(model_path):
                         self.model = self._safe_load_joblib(model_path)
@@ -157,20 +173,12 @@ class MLDetector:
                             model_loaded = True
                     else:
                         logger.error(f"Model file validation failed: {model_path}")
-                else:
-                    # Try alternative model paths - prioritize trained_models folder
-                    alt_model_paths = [
-                        # First try the trained models (highest priority)
-                        self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/RandomForest.joblib"),
-                        self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/MLP.joblib"),
-                        self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/XGboost.joblib"),
-                        # Fallback to any other models
-                        self.settings.get_resource_path("models/RandomForest.joblib"),
-                        self.settings.get_resource_path("models/MLP.joblib"),
-                        self.settings.get_resource_path("models/XGboost.joblib")
-                    ]
-                    
+
+                # If primary path failed, try alternative paths
+                if not model_loaded:
+                    logger.info(f"Primary model path failed, trying alternative paths...")
                     for alt_path in alt_model_paths:
+                        logger.debug(f"Trying alternative path: {alt_path}")
                         if alt_path.exists() and self._validate_model_file(alt_path):
                             self.model = self._safe_load_joblib(alt_path)
                             if self.model is not None:
@@ -179,7 +187,9 @@ class MLDetector:
                                 logger.info(f"Model type: {type(self.model).__name__}")
                                 model_loaded = True
                                 break
-                
+                        else:
+                            logger.debug(f"Alternative path not available or invalid: {alt_path}")
+
                 if not model_loaded:
                     error_msg = f"No valid model file found. Checked paths: {model_path}, {', '.join(str(p) for p in alt_model_paths)}"
                     logger.warning(error_msg)
@@ -192,6 +202,17 @@ class MLDetector:
                 # Try to load scaler
                 scaler_loaded = False
                 scaler_hash = None
+
+                # Define alternative scaler paths upfront to avoid variable scope issues
+                alt_scaler_paths = [
+                    # First try the trained models (highest priority)
+                    self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/standard_scaler.joblib"),
+                    # Fallback to other possible scaler locations
+                    self.settings.get_resource_path("models/standard_scaler.joblib"),
+                    self.settings.get_resource_path("models/scaler.joblib")
+                ]
+
+                # Try primary scaler path first
                 if scaler_path.exists():
                     if self._validate_model_file(scaler_path):
                         self.scaler = self._safe_load_joblib(scaler_path)
@@ -201,17 +222,12 @@ class MLDetector:
                             scaler_loaded = True
                     else:
                         logger.error(f"Scaler file validation failed: {scaler_path}")
-                else:
-                    # Try alternative scaler paths - prioritize trained_models folder
-                    alt_scaler_paths = [
-                        # First try the trained models (highest priority)
-                        self.settings.get_resource_path("models/results_enhanced_data-spoofing/trained_models/standard_scaler.joblib"),
-                        # Fallback to other possible scaler locations
-                        self.settings.get_resource_path("models/standard_scaler.joblib"),
-                        self.settings.get_resource_path("models/scaler.joblib")
-                    ]
-                    
+
+                # If primary path failed, try alternative paths
+                if not scaler_loaded:
+                    logger.info(f"Primary scaler path failed, trying alternative paths...")
                     for alt_scaler_path in alt_scaler_paths:
+                        logger.debug(f"Trying alternative scaler path: {alt_scaler_path}")
                         if alt_scaler_path.exists() and self._validate_model_file(alt_scaler_path):
                             self.scaler = self._safe_load_joblib(alt_scaler_path)
                             if self.scaler is not None:
@@ -219,7 +235,9 @@ class MLDetector:
                                 logger.info(f"Loaded scaler from alternative path: {alt_scaler_path}")
                                 scaler_loaded = True
                                 break
-                
+                        else:
+                            logger.debug(f"Alternative scaler path not available or invalid: {alt_scaler_path}")
+
                 if not scaler_loaded:
                     error_msg = f"No valid scaler file found. Checked paths: {scaler_path}, {', '.join(str(p) for p in alt_scaler_paths)}"
                     logger.warning(error_msg)
@@ -500,7 +518,7 @@ class MLDetector:
                         logger.info(f"Successfully loaded {file_path} using {method_name}")
                         return result
             except Exception as e:
-                logger.debug(f"{method_name} failed for {file_path}: {e}")
+                logger.debug(f"{method_name} failed for {file_path}: {e}")  # Back to DEBUG for production
                 continue
         
         logger.error(f"All loading methods failed for {file_path}")

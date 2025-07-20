@@ -6,51 +6,66 @@ debug_mode: false
 
 # Network capture settings
 network:
-  interface: null  # Auto-select if null
-  bpf_filter: "tcp and tcp[13]=2"  # SYN packets only
+  interface: null # Auto-select if null
+  bpf_filter: "tcp and tcp[13]=2" # SYN packets only
   promiscuous_mode: true
   capture_timeout: 1
 
 # ML detection settings
 detection:
-  prob_threshold: 0.05  # Probability threshold for attack alerts
-  window_seconds: 60   # Time window for feature extraction
-  max_queue_size: 10000  # Maximum packet queue size
+  prob_threshold: 0.05 # Probability threshold for attack alerts
+  window_seconds: 60 # Time window for feature extraction
+  max_queue_size: 10000 # Maximum packet queue size
   model_path: "models/syn_model.joblib"
   scaler_path: "models/syn_scaler.joblib"
 
 # Notification settings
 notifications:
   enable_notifications: true
-  notification_timeout: 5  # seconds
+  notification_timeout: 5 # seconds
   sound_enabled: true
 
 # Logging configuration
 logging:
-  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_level: "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
   log_dir: "logs"
   log_file: "scada.log"
-  max_log_size: 2097152  # 2MB in bytes
+  max_log_size: 2097152 # 2MB in bytes
   backup_count: 7
+
+# Detailed packet capture and ML analysis logging
+packet_logging:
+  enabled: false
+  log_level: "INFO" # DEBUG, INFO, DETAILED
+  directory: "logs/packet_analysis"
+  file_format: "packet_analysis_{timestamp}.log" # {timestamp} will be replaced with datetime
+  format: "JSON" # JSON or CSV
+  max_file_size: 52428800 # 50MB in bytes
+  backup_count: 10
+  include_packets: true
+  include_ml_analysis: true
+  include_features: true
+  include_performance: true
+  timestamp_precision: "milliseconds" # seconds or milliseconds
 
 # GUI Settings
 gui:
   window_title: "SCADA-IDS-KC - Network Intrusion Detection"
-  default_window_size: [1024, 768]  # width, height
+  default_window_size: [1024, 768] # width, height
   enable_system_tray: true
   minimize_to_tray: true
   auto_start_monitoring: false
-  gui_refresh_interval: 1000  # milliseconds
+  gui_refresh_interval: 1000 # milliseconds
 
 # Performance Settings
 performance:
   worker_threads: 2
   batch_size: 100
-  stats_update_interval: 5  # seconds
+  stats_update_interval: 5 # seconds
 
 # Security Settings
 security:
   secure_logging: true
   max_alerts_per_minute: 10
   enable_deduplication: true
-  deduplication_window: 30  # seconds
+  deduplication_window: 30 # seconds

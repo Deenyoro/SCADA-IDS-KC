@@ -287,8 +287,8 @@ def print_system_status(status):
     
     # ML model status from ml_detector sub-dict
     ml_info = status.get('ml_detector', {})
-    print(f"ML Model Loaded: {'Yes' if ml_info.get('is_loaded', False) else 'No'}")
-    if ml_info.get('is_loaded'):
+    print(f"ML Model Loaded: {'Yes' if ml_info.get('loaded', False) else 'No'}")
+    if ml_info.get('loaded'):
         print(f"ML Model Type: {ml_info.get('model_type', 'Unknown')}")
     
     # Notification status from notification_manager sub-dict
@@ -375,9 +375,9 @@ def show_model_info(controller):
         
         # Get model info
         info = detector.get_model_info()
-        print(f"Model Loaded: {'Yes' if info.get('is_loaded', False) else 'No'}")
-        
-        if info.get('is_loaded'):
+        print(f"Model Loaded: {'Yes' if info.get('loaded', False) else 'No'}")
+
+        if info.get('loaded'):
             print(f"Model Type: {info.get('model_type', 'Unknown')}")
             print(f"Model Hash: {info.get('model_hash', 'N/A')}")
             print(f"Scaler Loaded: {'Yes' if info.get('has_scaler', False) else 'No'}")
@@ -956,6 +956,16 @@ Examples:
                        default='INFO', help='Logging level')
     parser.add_argument('--config', type=str,
                        help='Configuration file path')
+
+    # Packet logging arguments
+    parser.add_argument('--enable-packet-logging', action='store_true',
+                       help='Enable detailed packet capture and ML analysis logging')
+    parser.add_argument('--packet-log-file', type=str,
+                       help='Custom packet log file path')
+    parser.add_argument('--packet-log-level', choices=['DEBUG', 'INFO', 'DETAILED'],
+                       default='INFO', help='Packet logging verbosity level')
+    parser.add_argument('--packet-log-format', choices=['JSON', 'CSV'],
+                       default='JSON', help='Packet log file format')
     
     # SIKC Configuration Management Commands
     parser.add_argument('--config-get', nargs=2, metavar=('SECTION', 'OPTION'),
@@ -1005,6 +1015,27 @@ Examples:
             reload_settings(args.config)
         else:
             get_settings()  # Load default config
+
+        # Configure packet logging from CLI arguments
+        if hasattr(args, 'enable_packet_logging') and args.enable_packet_logging:
+            settings = get_settings()
+            packet_config = settings.get_section('packet_logging') or {}
+            packet_config['enabled'] = True
+
+            if args.packet_log_level:
+                packet_config['log_level'] = args.packet_log_level
+            if args.packet_log_format:
+                packet_config['format'] = args.packet_log_format
+            if args.packet_log_file:
+                # Custom log file path
+                from pathlib import Path
+                log_path = Path(args.packet_log_file)
+                packet_config['directory'] = str(log_path.parent)
+                packet_config['file_format'] = log_path.name
+
+            # Update settings
+            settings.set_section('packet_logging', packet_config)
+            logger.info(f"Packet logging enabled: {packet_config}")
         
         logger.info("SCADA-IDS-KC starting...")
         

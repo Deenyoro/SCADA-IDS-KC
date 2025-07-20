@@ -106,7 +106,8 @@ class MainWindow(QMainWindow):
         self._update_system_status()
         self._update_model_info()
         self._refresh_interface_diagnostics()
-        
+        self._load_packet_logging_settings()
+
         logger.info("Enhanced main window initialized with security appliance UI")
     
     def _init_ui(self):
@@ -407,6 +408,20 @@ class MainWindow(QMainWindow):
         promisc_checkbox.setEnabled(False)
         promisc_checkbox.setToolTip("Promiscuous mode enables capture of all network traffic")
         layout.addWidget(promisc_checkbox, 1, 2, 1, 2)
+
+        # Packet logging controls
+        self.packet_logging_checkbox = QCheckBox("📝 Enable Detailed Packet Logging")
+        self.packet_logging_checkbox.setToolTip("Log detailed packet capture and ML analysis data for verification")
+        self.packet_logging_checkbox.stateChanged.connect(self._on_packet_logging_changed)
+        layout.addWidget(self.packet_logging_checkbox, 2, 0, 1, 2)
+
+        # Packet logging level
+        self.packet_log_level_combo = QComboBox()
+        self.packet_log_level_combo.addItems(["INFO", "DEBUG", "DETAILED"])
+        self.packet_log_level_combo.setToolTip("Packet logging verbosity level")
+        self.packet_log_level_combo.currentTextChanged.connect(self._on_packet_log_level_changed)
+        layout.addWidget(QLabel("Log Level:"), 2, 2)
+        layout.addWidget(self.packet_log_level_combo, 2, 3)
         
         # Start/Stop buttons with enhanced styling
         self.start_btn = QPushButton("▶️ Start Monitoring")
@@ -421,7 +436,7 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background-color: #45a049; }
         """)
         self.start_btn.clicked.connect(self._start_monitoring)
-        layout.addWidget(self.start_btn, 2, 0, 1, 2)
+        layout.addWidget(self.start_btn, 3, 0, 1, 2)
         
         self.stop_btn = QPushButton("⏹️ Stop Monitoring")
         self.stop_btn.setStyleSheet("""
@@ -436,12 +451,12 @@ class MainWindow(QMainWindow):
         """)
         self.stop_btn.clicked.connect(self._stop_monitoring)
         self.stop_btn.setEnabled(False)
-        layout.addWidget(self.stop_btn, 2, 2, 1, 2)
-        
+        layout.addWidget(self.stop_btn, 3, 2, 1, 2)
+
         # Status indicator with enhanced styling
         self.status_label = QLabel("🟡 Status: Ready")
         self.status_label.setStyleSheet("QLabel { font-weight: bold; color: #ffeb3b; font-size: 12px; }")
-        layout.addWidget(self.status_label, 3, 0, 1, 4)
+        layout.addWidget(self.status_label, 4, 0, 1, 4)
         
         return group
     
@@ -1594,6 +1609,102 @@ Test Status: {'PASSED' if response_time < 5000 else 'WARNING'}"""
         except Exception as e:
             logger.error(f"Error resetting configuration: {e}")
             QMessageBox.critical(self, "Error", f"Failed to reset configuration: {str(e)}")
+
+    def _load_packet_logging_settings(self):
+        """Load packet logging settings from configuration."""
+        try:
+            packet_config = self.settings.get_section('packet_logging') or {}
+
+            # Set checkbox state
+            enabled = packet_config.get('enabled', False)
+            self.packet_logging_checkbox.setChecked(enabled)
+
+            # Set log level
+            log_level = packet_config.get('log_level', 'INFO')
+            index = self.packet_log_level_combo.findText(log_level)
+            if index >= 0:
+                self.packet_log_level_combo.setCurrentIndex(index)
+
+        except Exception as e:
+            logger.error(f"Error loading packet logging settings: {e}")
+
+    def _on_packet_logging_changed(self, state):
+        """Handle packet logging checkbox state change."""
+        try:
+            enabled = state == 2  # Qt.CheckState.Checked
+
+            # Update settings
+            packet_config = self.settings.get_section('packet_logging') or {}
+            packet_config['enabled'] = enabled
+            self.settings.set_section('packet_logging', packet_config)
+
+            # Update controller's packet logger
+            if hasattr(self.controller, 'packet_logger'):
+                self.controller.packet_logger.enabled = enabled
+                if enabled:
+                    self.controller.packet_logger._initialize_logging()
+
+            # Log the change
+            status = "enabled" if enabled else "disabled"
+            self._log_message("INFO", f"Packet logging {status}")
+
+            # Show user feedback
+            if enabled:
+                QMessageBox.information(
+                    self,
+                    "Packet Logging Enabled",
+                    "Detailed packet capture and ML analysis logging is now enabled.\n\n"
+                    "Logs will be saved to the configured directory and will provide "
+                    "definitive proof of ML packet analysis functionality."
+                )
+
+        except Exception as e:
+            logger.error(f"Error changing packet logging setting: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to update packet logging: {str(e)}")
+
+    def _on_packet_log_level_changed(self, level):
+        """Handle packet log level change."""
+        try:
+            # Update settings
+            packet_config = self.settings.get_section('packet_logging') or {}
+            packet_config['log_level'] = level
+            self.settings.set_section('packet_logging', packet_config)
+
+            # Update controller's packet logger
+            if hasattr(self.controller, 'packet_logger'):
+                self.controller.packet_logger.log_level = level
+
+            self._log_message("INFO", f"Packet log level set to {level}")
+
+        except Exception as e:
+            logger.error(f"Error changing packet log level: {e}")
+
+    def _show_packet_log_info(self):
+        """Show packet logging information and status."""
+        try:
+            if hasattr(self.controller, 'packet_logger'):
+                stats = self.controller.packet_logger.get_statistics()
+
+                info_text = f"""
+                <h3>Packet Logging Status</h3>
+                <p><b>Enabled:</b> {stats['enabled']}</p>
+                <p><b>Packets Logged:</b> {stats['packets_logged']}</p>
+                <p><b>ML Analyses Logged:</b> {stats['ml_analyses_logged']}</p>
+                <p><b>Uptime:</b> {stats['uptime_seconds']:.1f} seconds</p>
+                <p><b>Log Format:</b> {stats['format']}</p>
+                <p><b>Log File:</b> {stats['log_file']}</p>
+
+                <p><i>Packet logging provides definitive proof that ML models
+                are analyzing captured network packets in real-time.</i></p>
+                """
+
+                QMessageBox.information(self, "Packet Logging Info", info_text)
+            else:
+                QMessageBox.warning(self, "Packet Logging", "Packet logger not available")
+
+        except Exception as e:
+            logger.error(f"Error showing packet log info: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to get packet logging info: {str(e)}")
     
     def closeEvent(self, event):
         """Handle window close event."""
