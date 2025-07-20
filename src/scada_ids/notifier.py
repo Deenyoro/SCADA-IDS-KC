@@ -24,11 +24,47 @@ except ImportError:
     logger.debug("win10toast not available")
 
 try:
+    # Force import platform modules first to prevent PyInstaller issues
+    import plyer.platforms
+    import plyer.platforms.win
+    import plyer.platforms.win.notification
     from plyer import notification as plyer_notification
     plyer_available = True
-except ImportError:
+    logger.debug("plyer loaded successfully with platform modules")
+except ImportError as e:
     plyer_available = False
-    logger.debug("plyer not available")
+    logger.debug(f"plyer not available: {e}")
+    
+    # Try a fallback approach for PyInstaller builds
+    try:
+        import sys
+        import os
+        
+        # In PyInstaller builds, manually add platform modules to sys.modules
+        if hasattr(sys, '_MEIPASS'):
+            logger.debug("Detected PyInstaller environment, trying manual plyer setup")
+            
+            # Create dummy platform modules to satisfy plyer's dynamic imports
+            import types
+            
+            # Create the platform module structure
+            platforms_module = types.ModuleType('plyer.platforms')
+            win_module = types.ModuleType('plyer.platforms.win')
+            notification_module = types.ModuleType('plyer.platforms.win.notification')
+            
+            # Add to sys.modules
+            sys.modules['plyer.platforms'] = platforms_module
+            sys.modules['plyer.platforms.win'] = win_module  
+            sys.modules['plyer.platforms.win.notification'] = notification_module
+            
+            # Try importing plyer again
+            from plyer import notification as plyer_notification
+            plyer_available = True
+            logger.debug("plyer loaded successfully using fallback method")
+            
+    except Exception as fallback_error:
+        plyer_available = False
+        logger.debug(f"plyer fallback also failed: {fallback_error}")
 
 
 class NotificationManager:
@@ -162,14 +198,8 @@ class NotificationManager:
             f"Time: {timestamp}"
         )
         
-        # Get icon path if available
-        icon_path = None
-        try:
-            icon_path = str(self.settings.get_resource_path("src/ui/icons/tray.ico"))
-        except Exception:
-            pass
-        
-        return self.send_notification(title, message, icon_path)
+        # Don't use icon to avoid loading issues in PyInstaller builds
+        return self.send_notification(title, message, icon_path=None)
     
     def send_system_alert(self, alert_type: str, message: str) -> bool:
         """
@@ -184,14 +214,8 @@ class NotificationManager:
         """
         title = f"SCADA-IDS-KC {alert_type}"
         
-        # Get icon path if available
-        icon_path = None
-        try:
-            icon_path = str(self.settings.get_resource_path("src/ui/icons/tray.ico"))
-        except Exception:
-            pass
-        
-        return self.send_notification(title, message, icon_path)
+        # Don't use icon to avoid loading issues in PyInstaller builds
+        return self.send_notification(title, message, icon_path=None)
     
     def test_notification(self) -> bool:
         """

@@ -880,8 +880,15 @@ class MainWindow(QMainWindow):
     def _on_interface_changed(self, interface: str):
         """Handle interface selection change."""
         if interface and not self.is_monitoring:
-            self.controller.set_interface(interface)
+            # Get the GUID from combo box data, fallback to text if no data
+            guid = self.interface_combo.currentData()
+            if not guid:
+                guid = interface
+            
+            self.controller.set_interface(guid)
             self._log_message("INFO", f"Selected interface: {interface}")
+            if guid != interface:
+                self._log_message("DEBUG", f"Using GUID: {guid}")
     
     def _start_monitoring(self):
         """Start network monitoring."""

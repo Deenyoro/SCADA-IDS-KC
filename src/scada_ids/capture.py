@@ -260,8 +260,8 @@ class PacketSniffer:
                 logger.error("Interface name must be a non-empty string")
                 return False
 
-            # Validate interface name
-            if len(interface) > 50:
+            # More lenient validation for Windows interface names (can be long GUIDs)
+            if len(interface) > 200:
                 logger.error("Interface name too long")
                 return False
 
@@ -271,6 +271,7 @@ class PacketSniffer:
                 return True
             else:
                 logger.error(f"Invalid interface: {interface}")
+                logger.error(f"Available interfaces: {self.interfaces}")
                 return False
     
     def _packet_handler(self, packet) -> None:
@@ -402,18 +403,40 @@ class PacketSniffer:
             capture_interface = self.current_interface
             logger.info(f"Attempting packet capture on interface: {capture_interface}")
             
-            try:
-                scapy.sniff(
-                    iface=capture_interface,
-                    filter=self.settings.network.bpf_filter,
-                    prn=self._packet_handler,
-                    store=False,
-                    stop_filter=lambda x: not self.is_running,
-                    timeout=self.settings.network.capture_timeout
-                )
-            except Exception as e:
-                logger.warning(f"Interface-specific capture failed ({e}), trying default interface...")
-                # Fall back to default interface (None means default)
+            # On Windows, try different interface formats
+            interface_variants = []
+            if capture_interface:
+                interface_variants.append(capture_interface)
+                # Try with rpcap:// prefix for Windows
+                if sys.platform == "win32" and not capture_interface.startswith("rpcap://"):
+                    interface_variants.append(f"rpcap://{capture_interface}")
+                # Try without braces if it has them
+                if capture_interface.startswith('{') and capture_interface.endswith('}'):
+                    interface_variants.append(capture_interface.strip('{}'))
+            
+            # Try each variant
+            capture_successful = False
+            for variant in interface_variants:
+                try:
+                    logger.info(f"Trying interface variant: {variant}")
+                    scapy.sniff(
+                        iface=variant,
+                        filter=self.settings.network.bpf_filter,
+                        prn=self._packet_handler,
+                        store=False,
+                        stop_filter=lambda x: not self.is_running,
+                        timeout=self.settings.network.capture_timeout
+                    )
+                    logger.info(f"Successfully started capture on: {variant}")
+                    capture_successful = True
+                    break
+                except Exception as e:
+                    logger.debug(f"Interface variant {variant} failed: {e}")
+                    continue
+            
+            # If no variants worked, try default interface
+            if not capture_successful:
+                logger.warning("All interface variants failed, trying default interface...")
                 scapy.sniff(
                     filter=self.settings.network.bpf_filter,
                     prn=self._packet_handler,

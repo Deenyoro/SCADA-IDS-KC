@@ -35,6 +35,22 @@ except Exception as e:
     datas_ml = []
     binaries_ml = []
 
+# Collect plyer for notifications
+try:
+    plyer_all = collect_all("plyer")
+    hidden_plyer = plyer_all[0]
+    datas_plyer = plyer_all[1]
+    binaries_plyer = plyer_all[2]
+    print(f"Successfully collected plyer:")
+    print(f"  Hidden imports: {len(hidden_plyer)}")
+    print(f"  Data files: {len(datas_plyer)}")
+    print(f"  Binaries: {len(binaries_plyer)}")
+except Exception as e:
+    print(f"Warning: Could not collect plyer: {e}")
+    hidden_plyer = []
+    datas_plyer = []
+    binaries_plyer = []
+
 # Get the project root directory
 project_root = Path(SPECPATH).parent
 
@@ -66,7 +82,7 @@ print(f"  Project root: {project_root}")
 print(f"  Source path: {src_path}")
 
 # Enhanced data files collection for Windows cross-compilation
-datas = datas_ml  # Start with ML library data files
+datas = datas_ml + datas_plyer  # Start with ML library and plyer data files
 
 # Essential configuration files
 config_files = [
@@ -137,8 +153,8 @@ for resource_path, dest_dir in ui_resources:
                     rel_path = file_path.relative_to(resource_path.parent)
                     datas.append((str(file_path), str(Path(dest_dir).parent / rel_path.parent)))
 
-# Platform-specific binaries - include ML binaries from collect_all
-binaries = binaries_ml if 'binaries_ml' in locals() else []
+# Platform-specific binaries - include ML and plyer binaries from collect_all
+binaries = binaries_ml + binaries_plyer if 'binaries_ml' in locals() and 'binaries_plyer' in locals() else []
 
 print(f"Total data files: {len(datas)}")
 
@@ -231,7 +247,12 @@ hidden_imports_list = [
     'plyer',
     'plyer.platforms',
     'plyer.platforms.win',
+    'plyer.platforms.win.notification',
     'plyer.platforms.linux',
+    'plyer.platforms.linux.notification',
+    'plyer.platforms.macosx',
+    'plyer.platforms.macosx.notification',
+    'plyer.notification',
 
     # Standard library modules that might be missed
     'threading',
@@ -270,11 +291,14 @@ hidden_imports_list = [
 # Add Windows-specific modules if available (for Wine builds)
 windows_specific = [
     'win10toast',
+    'win10toast.notifier',
     'win32api',
     'win32con',
     'win32gui',
     'win32process',
     'winsound',
+    'winreg',
+    'wmi',
 ]
 
 for module in windows_specific:
@@ -335,10 +359,10 @@ a = Analysis(
     pathex=[str(src_path)],
     binaries=binaries,
     datas=datas,
-    hiddenimports=['pydoc'] + hidden_ml + hidden_imports_list,
-    hookspath=[],
+    hiddenimports=['pydoc'] + hidden_ml + hidden_plyer + hidden_imports_list,
+    hookspath=[str(project_root / "packaging")],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(project_root / "packaging" / "pyi_rth_plyer.py")],
     excludes=excludes,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
