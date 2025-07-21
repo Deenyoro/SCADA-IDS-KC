@@ -131,3 +131,26 @@ claude.md
 requirements.offline/
 installers/
 python-3.11.9-amd64.exe
+
+# Temporary test files (prevent future clutter)
+test_*.py.tmp
+*_test_temp.py
+test_output_*.txt
+test_results_*.json
+
+# Temporary scripts and utilities
+generate_*.ps1.tmp
+temp_*.py
+temp_*.sh
+temp_*.bat
+
+# Backup files
+*.backup
+*.bak
+*.orig
+SIKC.cfg.backup.*
+
+# Documentation drafts
+*_DRAFT.md
+*_WIP.md
+*_TODO.md

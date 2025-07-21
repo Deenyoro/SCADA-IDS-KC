@@ -42,12 +42,21 @@
 
 ```
 SCADA-IDS-KC/
-├── src/scada_ids/     # Core engine
-├── src/ui/            # PyQt6 GUI
-├── config/            # Configuration files
-├── models/            # ML models
-├── packaging/         # Build specifications
-└── tests/             # Test suite
+├── src/                    # Source code
+│   ├── scada_ids/         # Core IDS modules
+│   └── ui/                # GUI components
+├── tests/                 # Test suite and validation scripts
+├── docs/                  # Complete documentation suite
+├── scripts/               # Build, setup, and utility scripts
+├── docker/                # Docker configuration files
+├── config/                # Configuration files and templates
+├── models/                # ML models and training data
+├── logs/                  # Runtime log files
+├── assets/                # Icons and resources
+├── packaging/             # PyInstaller specs and build configs
+├── analysis/              # Analysis scripts and reports
+├── build/                 # Build artifacts (generated)
+└── dist/                  # Built executables (generated)
 ```
 
 ## Dependencies
