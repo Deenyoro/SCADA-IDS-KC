@@ -84,9 +84,9 @@ class NetworkSettings(BaseSettings):
         if v is not None:
             if not isinstance(v, str) or not v.strip():
                 raise ValueError("Interface name must be a non-empty string")
-            # Basic interface name validation
-            if len(v) > 50:  # Reasonable limit for interface names
-                raise ValueError("Interface name too long (max 50 characters)")
+            # Basic interface name validation - Windows GUIDs can be long
+            if len(v) > 200:  # Increased limit for Windows interface GUIDs
+                raise ValueError("Interface name too long (max 200 characters)")
             return v.strip()
         return v
 

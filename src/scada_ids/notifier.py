@@ -83,7 +83,8 @@ class NotificationManager:
                 self.toast_notifier = ToastNotifier()
                 logger.info("Initialized Windows toast notifications")
             except Exception as e:
-                logger.warning(f"Failed to initialize Windows toast notifications: {e}")
+                logger.warning(f"Failed to initialize Windows toast notifications (this is non-critical): {e}")
+                logger.warning("Continuing without Windows toast notifications - plyer will be used as fallback")
                 self.toast_notifier = None
         
         logger.info(f"Notification manager initialized for {self.platform}")
@@ -128,30 +129,40 @@ class NotificationManager:
                 logger.error(f"Error sending notification: {e}")
                 return False
     
-    def _send_windows_notification(self, title: str, message: str, 
+    def _send_windows_notification(self, title: str, message: str,
                                   icon_path: Optional[str], timeout: int) -> bool:
         """Send Windows toast notification."""
         if not win10toast_available or not self.toast_notifier or self.platform != "Windows":
             return False
-        
+
         try:
             # Prepare icon path
             if icon_path and not icon_path.endswith('.ico'):
                 icon_path = None  # win10toast requires .ico files
-            
-            self.toast_notifier.show_toast(
-                title=title,
-                msg=message,
-                icon_path=icon_path,
-                duration=timeout,
-                threaded=True
-            )
-            
+
+            # Use a separate thread to avoid pkg_resources issues in PyInstaller
+            def _safe_toast():
+                try:
+                    self.toast_notifier.show_toast(
+                        title=title,
+                        msg=message,
+                        icon_path=icon_path,
+                        duration=timeout,
+                        threaded=False  # We're already in a thread
+                    )
+                except Exception as e:
+                    logger.warning(f"Toast notification failed (this is non-critical): {e}")
+
+            # Run in background thread to prevent blocking
+            import threading
+            toast_thread = threading.Thread(target=_safe_toast, daemon=True)
+            toast_thread.start()
+
             logger.debug(f"Sent Windows toast notification: {title}")
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to send Windows toast notification: {e}")
+            logger.warning(f"Windows toast notification failed (this is non-critical): {e}")
             return False
     
     def _send_plyer_notification(self, title: str, message: str, 

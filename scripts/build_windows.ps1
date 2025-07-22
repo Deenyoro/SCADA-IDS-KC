@@ -13,9 +13,10 @@ param(
 # Set error action preference
 $ErrorActionPreference = "Stop"
 
-# Get script directory
+# Get script directory and project root
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-Set-Location $ScriptDir
+$ProjectRoot = Split-Path -Parent $ScriptDir
+Set-Location $ProjectRoot
 
 Write-Host "=== SCADA-IDS-KC Windows Build Script ===" -ForegroundColor Green
 Write-Host "Build configuration:" -ForegroundColor Yellow
@@ -142,13 +143,14 @@ if ($Offline) {
     )
     
     $notificationPackages = @(
-        "win10toast-click==0.1.2",
         "plyer==2.1.0"
     )
     
     $buildPackages = @(
         "pyinstaller>=6.14,<7",
         "pyinstaller-hooks-contrib",
+        "altgraph",
+        "pefile>=2022.5.30,!=2024.8.26",
         "pywin32-ctypes",
         "pydantic==2.7.1"
     )
@@ -158,29 +160,50 @@ if ($Offline) {
         "pytest-qt==4.4.0"
     )
     
-    # Install each group with error handling
+    # Install each group with error handling (order matters for dependencies)
     $allGroups = @(
+        @{"name"="Build"; "packages"=$buildPackages},
         @{"name"="Core"; "packages"=$corePackages},
         @{"name"="ML"; "packages"=$mlPackages},
         @{"name"="GUI"; "packages"=$guiPackages},
         @{"name"="Network"; "packages"=$networkPackages},
         @{"name"="Notifications"; "packages"=$notificationPackages},
-        @{"name"="Build"; "packages"=$buildPackages},
         @{"name"="Test"; "packages"=$testPackages}
     )
     
     foreach ($group in $allGroups) {
         Write-Host "Installing $($group.name) packages..." -ForegroundColor Cyan
-        foreach ($package in $group.packages) {
-            Write-Host "  Installing $package..." -ForegroundColor Gray
-            try {
-                pip install $package --no-deps
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Warning "Failed to install $package, trying with dependencies..."
+
+        # For build tools, install with dependencies first
+        if ($group.name -eq "Build") {
+            foreach ($package in $group.packages) {
+                Write-Host "  Installing $package (with dependencies)..." -ForegroundColor Gray
+                try {
                     pip install $package
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "pip install failed with exit code $LASTEXITCODE"
+                    }
+                } catch {
+                    Write-Error "Critical build dependency failed: ${package}: $($_.Exception.Message)"
+                    exit 1
                 }
-            } catch {
-                Write-Warning "Failed to install ${package}: $($_.Exception.Message)"
+            }
+        } else {
+            # For other packages, try no-deps first, then with deps
+            foreach ($package in $group.packages) {
+                Write-Host "  Installing $package..." -ForegroundColor Gray
+                try {
+                    pip install $package --no-deps
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Warning "Failed to install $package without deps, trying with dependencies..."
+                        pip install $package
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "pip install failed with exit code $LASTEXITCODE"
+                        }
+                    }
+                } catch {
+                    Write-Warning "Failed to install ${package}: $($_.Exception.Message)"
+                }
             }
         }
     }
@@ -188,6 +211,14 @@ if ($Offline) {
     # Final installation to resolve any missing dependencies
     Write-Host "Resolving remaining dependencies..." -ForegroundColor Cyan
     pip install -r requirements.txt
+
+    # Install Windows-specific dependencies
+    Write-Host "Installing Windows-specific dependencies..." -ForegroundColor Cyan
+    if (Test-Path "requirements-windows.txt") {
+        pip install -r requirements-windows.txt
+    } else {
+        Write-Warning "requirements-windows.txt not found, skipping Windows-specific dependencies"
+    }
 }
 
 if ($LASTEXITCODE -ne 0) {
@@ -207,11 +238,43 @@ if ((Test-Path $modelPath) -and (Test-Path $scalerPath)) {
 
 # Compile Qt resources (if pyrcc6 is available)
 Write-Host "Compiling Qt resources..." -ForegroundColor Yellow
-try {
-    pyrcc6 -o src\ui\resources_rc.py src\ui\resources.qrc
-    Write-Host "Qt resources compiled successfully" -ForegroundColor Green
-} catch {
-    Write-Warning "Failed to compile Qt resources (pyrcc6 not available or failed)"
+if (Test-Path "src\ui\resources.qrc") {
+    try {
+        # Check if pyrcc6 is available
+        $pyrcc6Available = $false
+        try {
+            pyrcc6 --version | Out-Null
+            $pyrcc6Available = $true
+        } catch {
+            Write-Warning "pyrcc6 not found in PATH, trying alternative methods..."
+        }
+
+        if ($pyrcc6Available) {
+            pyrcc6 -o src\ui\resources_rc.py src\ui\resources.qrc
+            Write-Host "Qt resources compiled successfully with pyrcc6" -ForegroundColor Green
+        } else {
+            # Try using PyQt6 tools from virtual environment
+            try {
+                $venvPyrcc6 = ".venv\Scripts\pyrcc6.exe"
+                if (Test-Path $venvPyrcc6) {
+                    & $venvPyrcc6 -o src\ui\resources_rc.py src\ui\resources.qrc
+                    Write-Host "Qt resources compiled successfully with venv pyrcc6" -ForegroundColor Green
+                } else {
+                    # Try using pyside6-rcc as fallback
+                    pyside6-rcc -o src\ui\resources_rc.py src\ui\resources.qrc
+                    Write-Host "Qt resources compiled successfully with pyside6-rcc" -ForegroundColor Green
+                }
+            } catch {
+                Write-Warning "Qt resource compilation failed - continuing without compiled resources"
+                Write-Warning "This may cause missing icons in the GUI but application will still function"
+            }
+        }
+    } catch {
+        Write-Warning "Failed to compile Qt resources: $($_.Exception.Message)"
+        Write-Warning "GUI may have missing icons but will still function"
+    }
+} else {
+    Write-Warning "Qt resource file not found: src\ui\resources.qrc"
 }
 
 # Validate installation before building

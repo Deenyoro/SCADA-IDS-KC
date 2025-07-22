@@ -2,9 +2,9 @@
 # These packages can only be installed on Windows systems
 # They are included in the PyInstaller build but not installed during cross-compilation
 
-# Windows notifications
-win10toast==0.9
-# Note: win10toast-click has dependency issues, using basic win10toast instead
+# Windows notifications - win10toast removed due to pkg_resources packaging issues
+# Using plyer as the primary notification system for better PyInstaller compatibility
+# win10toast==0.9  # Disabled due to PyInstaller pkg_resources conflicts
 
 # Windows-specific system integration (optional)
 # pywin32==306  # Uncomment if needed for advanced Windows integration
