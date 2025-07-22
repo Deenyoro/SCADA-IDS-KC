@@ -1,445 +1,50 @@
-name: Build SCADA-IDS-KC Standalone (No Bundled Npcap)
+﻿name: Build SCADA-IDS-KC Standalone (No Bundled Npcap)
 
 on:
   push:
-    branches: [main, develop]
-    tags: ["v*"]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
-    inputs:
-      create_release:
-        description: "Create GitHub release"
-        required: false
-        default: false
-        type: boolean
-
-# Prevent multiple instances of this workflow from running simultaneously
-concurrency:
-  group: build-standalone-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   PYTHON_VERSION: "3.11"
-  BUILD_VARIANT: "standalone"
-  CI_EXPECTS_NO_NPCAP: "1" # Flag to indicate this is a standalone build without Npcap
 
 jobs:
-  build-windows:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-2022, windows-latest]
-        python-version: ["3.11", "3.12"]
-      fail-fast: false
-
+  build-without-npcap:
+    runs-on: windows-latest
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
 
-      - name: Run system requirements check
-        if: ${{ env.CI_EXPECTS_NO_NPCAP != '1' }} # Skip when building standalone variant
+      - name: Build standalone executable
         run: |
-          Write-Host "Checking system requirements for standalone build (Npcap not required)..."
-          python -c "
-          import sys
-          sys.path.insert(0, 'src')
-
-          # Test basic imports
-          try:
-              from scada_ids.controller import IDSController
-              print('✓ Core modules import successfully')
-          except Exception as e:
-              print(f'✗ Import failed: {e}')
-              exit(1)
-
-          # Test Npcap detection (expected to fail on CI runners - this is normal for standalone builds)
-          try:
-              from scada_ids.npcap_manager import get_npcap_manager
-              manager = get_npcap_manager()
-              status = manager.get_system_status()
-              print(f'✓ Npcap system status: {status}')
-          except Exception as e:
-              print(f'✓ Npcap manager test (expected on CI): {e}')
-              print('✓ This is expected behavior for standalone builds on CI runners')
-
-          print('✓ System requirements check passed for standalone build')
-          "
-
-      - name: Build with PyInstaller (No Npcap bundling)
-        run: |
-          Write-Host "Building SCADA-IDS-KC standalone (no bundled Npcap)..."
-
-          # Temporarily remove Npcap directory to ensure no bundling
-          if (Test-Path "npcap") {
-            Rename-Item "npcap" "npcap.backup"
-            Write-Host "Temporarily moved npcap directory to prevent bundling"
-          }
-
+          echo "Building standalone executable..."
           cd packaging
-          pyinstaller --clean SCADA-IDS-KC-main.spec
-
-          # Restore Npcap directory
-          cd ..
-          if (Test-Path "npcap.backup") {
-            Rename-Item "npcap.backup" "npcap"
-            Write-Host "Restored npcap directory"
-          }
-
-          # Verify build
-          if (Test-Path "packaging/dist/SCADA-IDS-KC.exe") {
-            $exe = Get-Item "packaging/dist/SCADA-IDS-KC.exe"
-            Write-Host "Build successful: $($exe.Length) bytes"
-          } else {
-            Write-Host "Build failed - executable not found"
-            exit 1
-          }
-
-      - name: Smoke test standalone executable
-        continue-on-error: true # Allow test failures - we're testing graceful degradation
-        id: smoke_test
-        shell: pwsh
-        run: |
-          Write-Host "Smoke testing standalone executable (expects missing Npcap)..."
-          cd packaging
-
-          # Verify executable exists
-          if (-not (Test-Path "dist/SCADA-IDS-KC.exe")) {
-            Write-Host "❌ Executable not found at dist/SCADA-IDS-KC.exe"
-            exit 1
-          }
-
-          Write-Host "✓ Executable found at dist/SCADA-IDS-KC.exe"
-          $exeInfo = Get-Item "dist/SCADA-IDS-KC.exe"
-          Write-Host "Executable size: $($exeInfo.Length) bytes"
-
-          # Test basic functionality - try multiple approaches
-          Write-Host "Testing executable basic functionality..."
-
-          # Test 1: Try version command
-          Write-Host "Test 1: Version command..."
-          try {
-            $versionOutput = & "./dist/SCADA-IDS-KC.exe" --cli --version 2>&1
-            $versionExitCode = $LASTEXITCODE
-            $versionOutput | Out-File -FilePath "version_test.log" -Encoding UTF8
-            Write-Host "Version command exit code: $versionExitCode"
-            Write-Host "Version output: $versionOutput"
-          } catch {
-            Write-Host "Version command exception: $_"
-            $versionExitCode = 1
-            "Exception: $_" | Out-File -FilePath "version_test.log" -Encoding UTF8
-          }
-
-          # Test 2: Try help command (more likely to work)
-          Write-Host "Test 2: Help command..."
-          try {
-            $helpOutput = & "./dist/SCADA-IDS-KC.exe" --help 2>&1
-            $helpExitCode = $LASTEXITCODE
-            $helpOutput | Out-File -FilePath "help_test.log" -Encoding UTF8
-            Write-Host "Help command exit code: $helpExitCode"
-            Write-Host "Help output length: $($helpOutput.Length) chars"
-          } catch {
-            Write-Host "Help command exception: $_"
-            $helpExitCode = 1
-            "Exception: $_" | Out-File -FilePath "help_test.log" -Encoding UTF8
-          }
-
-          # Test 3: Try just running executable (basic startup test)
-          Write-Host "Test 3: Basic executable startup test..."
-          try {
-            $startupOutput = & "./dist/SCADA-IDS-KC.exe" 2>&1
-            $startupExitCode = $LASTEXITCODE
-            $startupOutput | Out-File -FilePath "startup_test.log" -Encoding UTF8
-            Write-Host "Startup test exit code: $startupExitCode"
-            Write-Host "Startup output length: $($startupOutput.Length) chars"
-          } catch {
-            Write-Host "Startup test exception: $_"
-            $startupExitCode = 1
-            "Exception: $_" | Out-File -FilePath "startup_test.log" -Encoding UTF8
-          }
-
-          # Test 4: Try Npcap diagnostics (expect this to fail gracefully)
-          Write-Host "Test 4: Npcap diagnostics (expecting graceful failure)..."
-          try {
-            $npcapOutput = & "./dist/SCADA-IDS-KC.exe" --cli --diagnose-npcap 2>&1
-            $npcapExitCode = $LASTEXITCODE
-            $npcapOutput | Out-File -FilePath "npcap_test.log" -Encoding UTF8
-            Write-Host "Npcap diagnostics exit code: $npcapExitCode"
-            Write-Host "Npcap output length: $($npcapOutput.Length) chars"
-          } catch {
-            Write-Host "Npcap diagnostics exception: $_"
-            $npcapExitCode = 1
-            "Exception: $_" | Out-File -FilePath "npcap_test.log" -Encoding UTF8
-          }
-
-          Write-Host "✓ Smoke test completed - captured all outputs for analysis"
-
-      - name: Verify graceful error handling
-        if: always() # Run even if smoke test failed
-        shell: pwsh
-        run: |
-          Write-Host "Verifying that executable provides helpful error messages..."
-          cd packaging
-
-          # Check smoke test outcome
-          $smokeTestOutcome = "${{ steps.smoke_test.outcome }}"
-          Write-Host "Smoke test outcome: $smokeTestOutcome"
-
-          # Check all test outputs
-          $testFiles = @("version_test.log", "help_test.log", "startup_test.log", "npcap_test.log")
-          $successfulTests = 0
-
-          foreach ($testFile in $testFiles) {
-            if (Test-Path $testFile) {
-              $content = Get-Content $testFile -Raw
-              Write-Host "=== $testFile ==="
-              Write-Host $content
-              Write-Host "=== End $testFile ==="
-
-              # Check if test produced meaningful output
-              if ($content -match "(?i)(version|scada|ids|help|usage|error|exception)" -or $content.Length -gt 10) {
-                Write-Host "✓ $testFile produced output"
-                $successfulTests++
-              } else {
-                Write-Host "⚠ $testFile may have issues"
-              }
-            } else {
-              Write-Host "⚠ $testFile not found"
-            }
-          }
-
-          Write-Host "Successful tests: $successfulTests / $($testFiles.Count)"
-
-          if ($successfulTests -gt 0) {
-            Write-Host "✓ Executable demonstrates basic functionality"
-          } else {
-            Write-Host "⚠ Executable may have startup issues"
-          }
-
-          # Check that Npcap diagnostics mentions missing driver
-          if (Test-Path "npcap_test.log") {
-            $npcapContent = Get-Content "npcap_test.log" -Raw
-            Write-Host "Npcap diagnostics output:"
-            Write-Host $npcapContent
-
-            # Look for expected error patterns
-            if ($npcapContent -match "(?i)(npcap|driver|not.*found|not.*installed|missing)" -or
-                $npcapContent -match "(?i)(packet.*capture|winpcap|network.*interface)" -or
-                $npcapContent -match "(?i)(error|exception|failed)") {
-              Write-Host "✓ Npcap diagnostics correctly identifies missing driver or shows expected error"
-            } else {
-              Write-Host "⚠ Npcap diagnostics output may need improvement"
-            }
-          } else {
-            Write-Host "⚠ Npcap test log not found"
-          }
-
-          # Check interface listing output
-          if (Test-Path "interfaces_test.log") {
-            $interfacesContent = Get-Content "interfaces_test.log" -Raw
-            Write-Host "Interface listing output:"
-            Write-Host $interfacesContent
-
-            if ($interfacesContent -match "(?i)(interface|network|adapter)" -or
-                $interfacesContent -match "(?i)(error|exception|failed|npcap)") {
-              Write-Host "✓ Interface listing shows expected behavior"
-            } else {
-              Write-Host "⚠ Interface listing output may need review"
-            }
-          } else {
-            Write-Host "⚠ Interface test log not found"
-          }
-
-          Write-Host "✓ Graceful error handling verification completed"
-          Write-Host "✓ Standalone executable demonstrates expected behavior without Npcap"
+          python build_executable.py
 
       - name: Create release package
         run: |
-          Write-Host "Creating standalone release package..."
+          echo "Creating release package..."
+          cd packaging
+          New-Item -ItemType Directory -Path "../release" -Force
+          Copy-Item "dist/*" "../release/" -Recurse -Force
+          echo "SCADA-IDS-KC Standalone - Built $(Get-Date)" > "../release/BUILD_INFO.txt"
 
-          # Create release directory
-          New-Item -ItemType Directory -Path "release" -Force
-
-          # Copy executable and rename for variant
-          Copy-Item "packaging/dist/SCADA-IDS-KC.exe" "release/SCADA-IDS-KC-standalone.exe"
-
-          # Copy documentation
-          Copy-Item "README.md" "release/"
-          if (Test-Path "docs") {
-            Copy-Item "docs/" "release/docs/" -Recurse -ErrorAction SilentlyContinue
-          }
-
-          # Create simple installation guide
-          "# SCADA-IDS-KC Standalone`n`nRequires Npcap to be installed separately.`nDownload from: https://npcap.com/`nRun as Administrator for full functionality." | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
-
-          # Create version info
-          $version = Get-Date -Format "yyyy.MM.dd.HHmm"
-
-          $versionInfo = @{
-            version = $version
-            build_date = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
-            npcap_bundled = $false
-            npcap_status = "system-required"
-            python_version = "${{ matrix.python-version }}"
-            platform = "windows"
-            build_variant = "standalone"
-          }
-          $versionInfo | ConvertTo-Json | Out-File -FilePath "release/version.json" -Encoding UTF8
-
-      - name: Upload build artifacts
-        if: always() # Upload artifacts even if tests fail
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: scada-ids-kc-standalone-${{ matrix.os }}-py${{ matrix.python-version }}
+          name: scada-ids-kc-standalone
           path: release/
           retention-days: 30
-
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs-standalone-${{ matrix.os }}-py${{ matrix.python-version }}
-          path: |
-            packaging/build/
-            packaging/dist/
-          retention-days: 7
-
-  test-fallback-behavior:
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Build without any Npcap
-        run: |
-          Write-Host "Building without any Npcap for fallback testing..."
-
-          # Remove any Npcap-related files
-          if (Test-Path "npcap") {
-            Remove-Item "npcap" -Recurse -Force
-          }
-
-          cd packaging
-          pyinstaller --clean SCADA-IDS-KC-main.spec
-
-      - name: Test fallback behavior (negative test)
-        continue-on-error: true # Allow this step to "fail" - we expect missing Npcap
-        id: fallback_test
-        shell: pwsh
-        run: |
-          Write-Host "Testing fallback behavior without any Npcap (negative test)..."
-          cd packaging
-
-          # Test that application handles missing Npcap gracefully
-          Write-Host "Running Npcap diagnostics (expecting graceful failure)..."
-          ./dist/SCADA-IDS-KC.exe --cli --diagnose-npcap 2>&1 | Tee-Object -FilePath fallback_test.log
-          $npcapExitCode = $LASTEXITCODE
-          Write-Host "Npcap diagnostics exit code: $npcapExitCode"
-
-          # Test version command (should always work)
-          Write-Host "Testing version command (should succeed)..."
-          ./dist/SCADA-IDS-KC.exe --cli --version
-          $versionExitCode = $LASTEXITCODE
-          Write-Host "Version command exit code: $versionExitCode"
-
-          if ($versionExitCode -eq 0) {
-            Write-Host "✓ Version command works correctly"
-          } else {
-            Write-Host "✗ Version command failed unexpectedly"
-            exit 1
-          }
-
-          Write-Host "✓ Fallback behavior testing completed"
-
-      - name: Verify expected fallback behavior
-        if: always() # Run even if previous step had continue-on-error
-        shell: pwsh
-        run: |
-          Write-Host "Verifying that fallback test behaved as expected..."
-          cd packaging
-
-          # Check the outcome of the fallback test
-          $outcome = "${{ steps.fallback_test.outcome }}"
-          Write-Host "Fallback test outcome: $outcome"
-
-          if (Test-Path "fallback_test.log") {
-            $content = Get-Content "fallback_test.log" -Raw
-            Write-Host "Fallback test output:"
-            Write-Host $content
-          }
-
-          Write-Host "✓ Fallback behavior verification completed"
-          Write-Host "✓ Application demonstrates graceful degradation without Npcap"
-
-  create-release:
-    if: github.event.inputs.create_release == 'true' || startsWith(github.ref, 'refs/tags/')
-    needs: [build-windows]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-
-      - name: Create release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name || format('v{0}-standalone', github.run_number) }}
-          name: SCADA-IDS-KC Standalone ${{ github.ref_name || format('Build {0}', github.run_number) }}
-          body: |
-            ## SCADA-IDS-KC Standalone (No Bundled Npcap)
-
-            This release requires Npcap to be installed separately on your system.
-
-            ### Features:
-            - Smaller executable size
-            - Uses system-installed Npcap or Wireshark
-            - Comprehensive system diagnostics
-            - Fallback detection for existing installations
-
-            ### Requirements:
-            - Npcap installed separately (download from https://npcap.com/)
-            - OR Wireshark installed (includes Npcap)
-
-            ### Usage:
-            1. Install Npcap or Wireshark first
-            2. Download `SCADA-IDS-KC-standalone.exe`
-            3. Run as Administrator
-
-            ### When to Use:
-            - You already have Npcap/Wireshark installed
-            - You prefer manual control over packet capture drivers
-            - You want a smaller executable file
-
-            ### Build Information:
-            - Build Date: ${{ github.run_id }}
-            - Commit: ${{ github.sha }}
-          files: artifacts/**/*
-          draft: false
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
