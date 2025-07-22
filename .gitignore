@@ -78,7 +78,19 @@ packaging/*.rpm
 packaging/dist/
 packaging/build/
 release/
+release-*/
 *.exe
+
+# Build system artifacts
+.venv/
+venv/
+build/
+dist/
+*.spec.bak
+
+# Npcap cache
+npcap/*.exe
+npcap/*.backup
 
 # Additional Python exclusions
 htmlcov/

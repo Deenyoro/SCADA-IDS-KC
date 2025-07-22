@@ -1,8 +1,9 @@
-name: Build SCADA-IDS-KC with Npcap
+name: Build SCADA-IDS-KC with Bundled Npcap
 
 on:
   push:
     branches: [ main, develop ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -17,10 +18,16 @@ on:
         required: false
         default: false
         type: boolean
+      create_release:
+        description: 'Create GitHub release'
+        required: false
+        default: false
+        type: boolean
 
 env:
   PYTHON_VERSION: '3.11'
   NPCAP_VERSION: ${{ github.event.inputs.npcap_version || 'latest' }}
+  BUILD_VARIANT: 'with-npcap'
 
 jobs:
   prepare-npcap:
@@ -91,7 +98,12 @@ jobs:
 
   build-windows:
     needs: prepare-npcap
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2019, windows-2022, windows-latest]
+        python-version: ['3.11', '3.12']
+      fail-fast: false
     
     steps:
     - name: Checkout repository
@@ -100,7 +112,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: ${{ matrix.python-version }}
     
     - name: Download Npcap artifacts
       if: needs.prepare-npcap.outputs.npcap-prepared == 'true'
@@ -199,21 +211,23 @@ jobs:
     
     - name: Create release package
       run: |
-        echo "Creating release package..."
-        
+        Write-Host "Creating release package..."
+
         # Create release directory
         New-Item -ItemType Directory -Path "release" -Force
-        
-        # Copy executable
-        Copy-Item "packaging/dist/SCADA-IDS-KC.exe" "release/"
-        
+
+        # Copy executable and rename for variant
+        Copy-Item "packaging/dist/SCADA-IDS-KC.exe" "release/SCADA-IDS-KC-with-npcap.exe"
+
         # Copy documentation
         Copy-Item "README.md" "release/"
-        Copy-Item "docs/" "release/docs/" -Recurse -ErrorAction SilentlyContinue
-        
+        if (Test-Path "docs") {
+          Copy-Item "docs/" "release/docs/" -Recurse -ErrorAction SilentlyContinue
+        }
+
         # Create installation guide
-        @"
-# SCADA-IDS-KC Installation Guide
+        $installGuide = @"
+# SCADA-IDS-KC with Bundled Npcap - Installation Guide
 
 ## Automatic Installation
 This build includes an embedded Npcap installer that will be automatically
@@ -227,32 +241,35 @@ If automatic installation fails, you can manually install Npcap:
 4. Restart the system after installation
 
 ## Usage
-Run SCADA-IDS-KC.exe as Administrator for full functionality.
+Run SCADA-IDS-KC-with-npcap.exe as Administrator for full functionality.
 
-For command-line usage: SCADA-IDS-KC.exe --cli --help
-For GUI mode: Double-click SCADA-IDS-KC.exe
+For command-line usage: SCADA-IDS-KC-with-npcap.exe --cli --help
+For GUI mode: Double-click SCADA-IDS-KC-with-npcap.exe
 
 ## Troubleshooting
-Run diagnostics: SCADA-IDS-KC.exe --cli --diagnose-npcap
-"@ | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
-        
+Run diagnostics: SCADA-IDS-KC-with-npcap.exe --cli --diagnose-npcap
+"@
+        $installGuide | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
+
         # Create version info
         $version = Get-Date -Format "yyyy.MM.dd.HHmm"
         $npcap_status = if (Test-Path "npcap/npcap-installer.exe") { "bundled" } else { "not-bundled" }
-        
-        @{
+
+        $versionInfo = @{
           version = $version
           build_date = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
           npcap_version = "${{ needs.prepare-npcap.outputs.npcap-version }}"
           npcap_status = $npcap_status
           python_version = "${{ env.PYTHON_VERSION }}"
           platform = "windows"
-        } | ConvertTo-Json | Out-File -FilePath "release/version.json" -Encoding UTF8
+          build_variant = "with-npcap"
+        }
+        $versionInfo | ConvertTo-Json | Out-File -FilePath "release/version.json" -Encoding UTF8
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: scada-ids-kc-windows
+        name: scada-ids-kc-with-npcap-${{ matrix.os }}-py${{ matrix.python-version }}
         path: release/
         retention-days: 30
     
@@ -305,3 +322,45 @@ Run diagnostics: SCADA-IDS-KC.exe --cli --diagnose-npcap
         } else {
           echo "Correctly detected missing Npcap (exit code: $exitCode)"
         }
+
+  create-release:
+    if: github.event.inputs.create_release == 'true' || startsWith(github.ref, 'refs/tags/')
+    needs: [build-windows]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts/
+
+    - name: Create release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name || format('v{0}', github.run_number) }}
+        name: SCADA-IDS-KC with Bundled Npcap ${{ github.ref_name || format('Build {0}', github.run_number) }}
+        body: |
+          ## SCADA-IDS-KC with Bundled Npcap
+
+          This release includes an embedded Npcap installer for automatic packet capture setup.
+
+          ### Features:
+          - Automatic Npcap installation and configuration
+          - No manual Npcap setup required
+          - Comprehensive system diagnostics
+          - Fallback detection for existing installations
+
+          ### Usage:
+          1. Download `SCADA-IDS-KC-with-npcap.exe`
+          2. Run as Administrator
+          3. Npcap will be automatically installed if needed
+
+          ### Build Information:
+          - Npcap Version: ${{ needs.prepare-npcap.outputs.npcap-version }}
+          - Build Date: ${{ github.run_id }}
+          - Commit: ${{ github.sha }}
+        files: artifacts/**/*
+        draft: false
+        prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
