@@ -2,21 +2,21 @@ name: Build SCADA-IDS-KC Standalone (No Bundled Npcap)
 
 on:
   push:
-    branches: [ main, develop ]
-    tags: [ 'v*' ]
+    branches: [main, develop]
+    tags: ["v*"]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
     inputs:
       create_release:
-        description: 'Create GitHub release'
+        description: "Create GitHub release"
         required: false
         default: false
         type: boolean
 
 env:
-  PYTHON_VERSION: '3.11'
-  BUILD_VARIANT: 'standalone'
+  PYTHON_VERSION: "3.11"
+  BUILD_VARIANT: "standalone"
 
 jobs:
   build-windows:
@@ -24,262 +24,253 @@ jobs:
     strategy:
       matrix:
         os: [windows-2019, windows-2022, windows-latest]
-        python-version: ['3.11', '3.12']
+        python-version: ["3.11", "3.12"]
       fail-fast: false
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-    
-    - name: Run system requirements check
-      run: |
-        Write-Host "Checking system requirements without bundled Npcap..."
-        python -c "
-        import sys
-        sys.path.insert(0, 'src')
-        
-        # Test basic imports
-        try:
-            from scada_ids.controller import IDSController
-            print('✓ Core modules import successfully')
-        except Exception as e:
-            print(f'✗ Import failed: {e}')
-            exit(1)
-        
-        # Test Npcap detection (should work with system Npcap/Wireshark)
-        try:
-            from scada_ids.npcap_manager import get_npcap_manager
-            manager = get_npcap_manager()
-            status = manager.get_system_status()
-            print(f'Npcap system status: {status}')
-        except Exception as e:
-            print(f'Npcap manager test: {e}')
-        "
-    
-    - name: Build with PyInstaller (No Npcap bundling)
-      run: |
-        Write-Host "Building SCADA-IDS-KC standalone (no bundled Npcap)..."
-        
-        # Temporarily remove Npcap directory to ensure no bundling
-        if (Test-Path "npcap") {
-          Rename-Item "npcap" "npcap.backup"
-          Write-Host "Temporarily moved npcap directory to prevent bundling"
-        }
-        
-        cd packaging
-        pyinstaller --clean SCADA-IDS-KC-main.spec
-        
-        # Restore Npcap directory
-        cd ..
-        if (Test-Path "npcap.backup") {
-          Rename-Item "npcap.backup" "npcap"
-          Write-Host "Restored npcap directory"
-        }
-        
-        # Verify build
-        if (Test-Path "packaging/dist/SCADA-IDS-KC.exe") {
-          $exe = Get-Item "packaging/dist/SCADA-IDS-KC.exe"
-          Write-Host "Build successful: $($exe.Length) bytes"
-        } else {
-          Write-Host "Build failed - executable not found"
-          exit 1
-        }
-    
-    - name: Test built executable
-      run: |
-        Write-Host "Testing built executable..."
-        cd packaging
-        
-        # Test basic functionality
-        ./dist/SCADA-IDS-KC.exe --cli --version
-        
-        # Test Npcap diagnostics (should detect system installations)
-        ./dist/SCADA-IDS-KC.exe --cli --diagnose-npcap
-        
-        # Test interface listing (may work with system Npcap)
-        ./dist/SCADA-IDS-KC.exe --cli --interfaces
-    
-    - name: Create release package
-      run: |
-        Write-Host "Creating standalone release package..."
-        
-        # Create release directory
-        New-Item -ItemType Directory -Path "release" -Force
-        
-        # Copy executable and rename for variant
-        Copy-Item "packaging/dist/SCADA-IDS-KC.exe" "release/SCADA-IDS-KC-standalone.exe"
-        
-        # Copy documentation
-        Copy-Item "README.md" "release/"
-        if (Test-Path "docs") {
-          Copy-Item "docs/" "release/docs/" -Recurse -ErrorAction SilentlyContinue
-        }
-        
-        # Create installation guide for standalone version
-        $installGuide = @"
-# SCADA-IDS-KC Standalone - Installation Guide
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-## System Requirements
-This standalone build requires Npcap to be installed separately on your system.
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
 
-## Npcap Installation
-1. Download Npcap from: https://npcap.com/
-2. Install with these options:
-   - WinPcap API compatibility: ON
-   - Restrict to administrators: OFF (recommended)
-   - Install loopback adapter: ON (optional)
-3. Restart the system after installation
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
 
-## Alternative: Use Wireshark
-If you have Wireshark installed, it includes Npcap and should work automatically.
+      - name: Run system requirements check
+        run: |
+          Write-Host "Checking system requirements without bundled Npcap..."
+          python -c "
+          import sys
+          sys.path.insert(0, 'src')
 
-## Usage
-Run SCADA-IDS-KC-standalone.exe as Administrator for full functionality.
+          # Test basic imports
+          try:
+              from scada_ids.controller import IDSController
+              print('✓ Core modules import successfully')
+          except Exception as e:
+              print(f'✗ Import failed: {e}')
+              exit(1)
 
-For command-line usage: SCADA-IDS-KC-standalone.exe --cli --help
-For GUI mode: Double-click SCADA-IDS-KC-standalone.exe
+          # Test Npcap detection (should work with system Npcap/Wireshark)
+          try:
+              from scada_ids.npcap_manager import get_npcap_manager
+              manager = get_npcap_manager()
+              status = manager.get_system_status()
+              print(f'Npcap system status: {status}')
+          except Exception as e:
+              print(f'Npcap manager test: {e}')
+          "
 
-## Troubleshooting
-Run diagnostics: SCADA-IDS-KC-standalone.exe --cli --diagnose-npcap
+      - name: Build with PyInstaller (No Npcap bundling)
+        run: |
+          Write-Host "Building SCADA-IDS-KC standalone (no bundled Npcap)..."
 
-## When to Use This Build
-- You already have Npcap or Wireshark installed
-- You prefer manual control over Npcap installation
-- You want a smaller executable file
-- You're deploying in environments with existing packet capture infrastructure
-"@
-        $installGuide | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
-        
-        # Create version info
-        $version = Get-Date -Format "yyyy.MM.dd.HHmm"
-        
-        $versionInfo = @{
-          version = $version
-          build_date = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
-          npcap_bundled = $false
-          npcap_status = "system-required"
-          python_version = "${{ matrix.python-version }}"
-          platform = "windows"
-          build_variant = "standalone"
-        }
-        $versionInfo | ConvertTo-Json | Out-File -FilePath "release/version.json" -Encoding UTF8
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: scada-ids-kc-standalone-${{ matrix.os }}-py${{ matrix.python-version }}
-        path: release/
-        retention-days: 30
-    
-    - name: Upload build logs
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: build-logs-standalone-${{ matrix.os }}-py${{ matrix.python-version }}
-        path: |
-          packaging/build/
-          packaging/dist/
-        retention-days: 7
+          # Temporarily remove Npcap directory to ensure no bundling
+          if (Test-Path "npcap") {
+            Rename-Item "npcap" "npcap.backup"
+            Write-Host "Temporarily moved npcap directory to prevent bundling"
+          }
+
+          cd packaging
+          pyinstaller --clean SCADA-IDS-KC-main.spec
+
+          # Restore Npcap directory
+          cd ..
+          if (Test-Path "npcap.backup") {
+            Rename-Item "npcap.backup" "npcap"
+            Write-Host "Restored npcap directory"
+          }
+
+          # Verify build
+          if (Test-Path "packaging/dist/SCADA-IDS-KC.exe") {
+            $exe = Get-Item "packaging/dist/SCADA-IDS-KC.exe"
+            Write-Host "Build successful: $($exe.Length) bytes"
+          } else {
+            Write-Host "Build failed - executable not found"
+            exit 1
+          }
+
+      - name: Test built executable
+        run: |
+          Write-Host "Testing built executable..."
+          cd packaging
+
+          # Test basic functionality
+          ./dist/SCADA-IDS-KC.exe --cli --version
+
+          # Test Npcap diagnostics (should detect system installations)
+          ./dist/SCADA-IDS-KC.exe --cli --diagnose-npcap
+
+          # Test interface listing (may work with system Npcap)
+          ./dist/SCADA-IDS-KC.exe --cli --interfaces
+
+      - name: Create release package
+        run: |
+          Write-Host "Creating standalone release package..."
+
+          # Create release directory
+          New-Item -ItemType Directory -Path "release" -Force
+
+          # Copy executable and rename for variant
+          Copy-Item "packaging/dist/SCADA-IDS-KC.exe" "release/SCADA-IDS-KC-standalone.exe"
+
+          # Copy documentation
+          Copy-Item "README.md" "release/"
+          if (Test-Path "docs") {
+            Copy-Item "docs/" "release/docs/" -Recurse -ErrorAction SilentlyContinue
+          }
+
+          # Create installation guide for standalone version
+          $installGuide = "# SCADA-IDS-KC Standalone - Installation Guide`n`n" +
+            "## System Requirements`n" +
+            "This standalone build requires Npcap to be installed separately on your system.`n`n" +
+            "## Npcap Installation`n" +
+            "1. Download Npcap from: https://npcap.com/`n" +
+            "2. Install with these options:`n" +
+            "   - WinPcap API compatibility: ON`n" +
+            "   - Restrict to administrators: OFF (recommended)`n" +
+            "   - Install loopback adapter: ON (optional)`n" +
+            "3. Restart the system after installation`n`n" +
+            "## Alternative: Use Wireshark`n" +
+            "If you have Wireshark installed, it includes Npcap and should work automatically.`n`n" +
+            "## Usage`n" +
+            "Run SCADA-IDS-KC-standalone.exe as Administrator for full functionality.`n`n" +
+            "For command-line usage: SCADA-IDS-KC-standalone.exe --cli --help`n" +
+            "For GUI mode: Double-click SCADA-IDS-KC-standalone.exe`n`n" +
+            "## Troubleshooting`n" +
+            "Run diagnostics: SCADA-IDS-KC-standalone.exe --cli --diagnose-npcap`n`n" +
+            "## When to Use This Build`n" +
+            "- You already have Npcap or Wireshark installed`n" +
+            "- You prefer manual control over Npcap installation`n" +
+            "- You want a smaller executable file`n" +
+            "- You're deploying in environments with existing packet capture infrastructure"
+          $installGuide | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
+
+          # Create version info
+          $version = Get-Date -Format "yyyy.MM.dd.HHmm"
+
+          $versionInfo = @{
+            version = $version
+            build_date = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+            npcap_bundled = $false
+            npcap_status = "system-required"
+            python_version = "${{ matrix.python-version }}"
+            platform = "windows"
+            build_variant = "standalone"
+          }
+          $versionInfo | ConvertTo-Json | Out-File -FilePath "release/version.json" -Encoding UTF8
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: scada-ids-kc-standalone-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: release/
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-logs-standalone-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            packaging/build/
+            packaging/dist/
+          retention-days: 7
 
   test-fallback-behavior:
     runs-on: windows-latest
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-    
-    - name: Build without any Npcap
-      run: |
-        Write-Host "Building without any Npcap for fallback testing..."
-        
-        # Remove any Npcap-related files
-        if (Test-Path "npcap") {
-          Remove-Item "npcap" -Recurse -Force
-        }
-        
-        cd packaging
-        pyinstaller --clean SCADA-IDS-KC-main.spec
-    
-    - name: Test fallback behavior
-      run: |
-        Write-Host "Testing fallback behavior without any Npcap..."
-        cd packaging
-        
-        # Test that application handles missing Npcap gracefully
-        ./dist/SCADA-IDS-KC.exe --cli --diagnose-npcap
-        
-        # Should provide clear guidance about missing Npcap
-        $exitCode = $LASTEXITCODE
-        Write-Host "Fallback test completed with exit code: $exitCode"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build without any Npcap
+        run: |
+          Write-Host "Building without any Npcap for fallback testing..."
+
+          # Remove any Npcap-related files
+          if (Test-Path "npcap") {
+            Remove-Item "npcap" -Recurse -Force
+          }
+
+          cd packaging
+          pyinstaller --clean SCADA-IDS-KC-main.spec
+
+      - name: Test fallback behavior
+        run: |
+          Write-Host "Testing fallback behavior without any Npcap..."
+          cd packaging
+
+          # Test that application handles missing Npcap gracefully
+          ./dist/SCADA-IDS-KC.exe --cli --diagnose-npcap
+
+          # Should provide clear guidance about missing Npcap
+          $exitCode = $LASTEXITCODE
+          Write-Host "Fallback test completed with exit code: $exitCode"
 
   create-release:
     if: github.event.inputs.create_release == 'true' || startsWith(github.ref, 'refs/tags/')
     needs: [build-windows]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v3
-      with:
-        path: artifacts/
-    
-    - name: Create release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ github.ref_name || format('v{0}-standalone', github.run_number) }}
-        name: SCADA-IDS-KC Standalone ${{ github.ref_name || format('Build {0}', github.run_number) }}
-        body: |
-          ## SCADA-IDS-KC Standalone (No Bundled Npcap)
-          
-          This release requires Npcap to be installed separately on your system.
-          
-          ### Features:
-          - Smaller executable size
-          - Uses system-installed Npcap or Wireshark
-          - Comprehensive system diagnostics
-          - Fallback detection for existing installations
-          
-          ### Requirements:
-          - Npcap installed separately (download from https://npcap.com/)
-          - OR Wireshark installed (includes Npcap)
-          
-          ### Usage:
-          1. Install Npcap or Wireshark first
-          2. Download `SCADA-IDS-KC-standalone.exe`
-          3. Run as Administrator
-          
-          ### When to Use:
-          - You already have Npcap/Wireshark installed
-          - You prefer manual control over packet capture drivers
-          - You want a smaller executable file
-          
-          ### Build Information:
-          - Build Date: ${{ github.run_id }}
-          - Commit: ${{ github.sha }}
-        files: artifacts/**/*
-        draft: false
-        prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name || format('v{0}-standalone', github.run_number) }}
+          name: SCADA-IDS-KC Standalone ${{ github.ref_name || format('Build {0}', github.run_number) }}
+          body: |
+            ## SCADA-IDS-KC Standalone (No Bundled Npcap)
+
+            This release requires Npcap to be installed separately on your system.
+
+            ### Features:
+            - Smaller executable size
+            - Uses system-installed Npcap or Wireshark
+            - Comprehensive system diagnostics
+            - Fallback detection for existing installations
+
+            ### Requirements:
+            - Npcap installed separately (download from https://npcap.com/)
+            - OR Wireshark installed (includes Npcap)
+
+            ### Usage:
+            1. Install Npcap or Wireshark first
+            2. Download `SCADA-IDS-KC-standalone.exe`
+            3. Run as Administrator
+
+            ### When to Use:
+            - You already have Npcap/Wireshark installed
+            - You prefer manual control over packet capture drivers
+            - You want a smaller executable file
+
+            ### Build Information:
+            - Build Date: ${{ github.run_id }}
+            - Commit: ${{ github.sha }}
+          files: artifacts/**/*
+          draft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
