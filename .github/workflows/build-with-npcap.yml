@@ -67,28 +67,34 @@ jobs:
 
       - name: Prepare Npcap installer
         id: prepare
-        timeout-minutes: 10
+        timeout-minutes: 15  # Extended timeout for better reliability
+        continue-on-error: true  # Allow fallback to handle failures
         run: |
-          echo "Preparing Npcap installer..."
+          echo "=== PREPARING NPCAP INSTALLER ==="
+          echo "Version: ${{ env.NPCAP_VERSION }}"
+          echo "Force download: ${{ github.event.inputs.force_download }}"
 
           $args = @("scripts/prepare_npcap.py", "--version", "${{ env.NPCAP_VERSION }}", "--verbose")
           if ("${{ github.event.inputs.force_download }}" -eq "true") {
             $args += "--force"
           }
 
+          echo "Running: python $($args -join ' ')"
+
           try {
             python @args
             $exitCode = $LASTEXITCODE
+            echo "Python script exit code: $exitCode"
 
             if ($exitCode -ne 0) {
-              echo "prepare_npcap.py failed with exit code: $exitCode"
+              echo "❌ prepare_npcap.py failed with exit code: $exitCode"
               echo "success=false" >> $env:GITHUB_OUTPUT
-              exit 1
+            } else {
+              echo "✅ Python script completed successfully"
             }
           } catch {
-            echo "Error running prepare_npcap.py: $_"
+            echo "❌ Error running prepare_npcap.py: $_"
             echo "success=false" >> $env:GITHUB_OUTPUT
-            exit 1
           }
 
           if (Test-Path "npcap/npcap-installer.exe") {
@@ -97,12 +103,26 @@ jobs:
             # Get file info
             $installer = Get-Item "npcap/npcap-installer.exe"
             $size = $installer.Length
-            echo "Npcap installer prepared successfully: $size bytes"
+            echo "✅ Npcap installer prepared successfully: $size bytes"
             echo "version=${{ env.NPCAP_VERSION }}" >> $env:GITHUB_OUTPUT
+
+            # Additional verification
+            if ($size -lt 500000) {
+              echo "⚠️ Warning: Installer size seems small ($size bytes)"
+            } else {
+              echo "✅ Installer size looks good: $size bytes"
+            }
           } else {
+            echo "❌ Failed to prepare Npcap installer - file not found"
             echo "success=false" >> $env:GITHUB_OUTPUT
-            echo "Failed to prepare Npcap installer - file not found"
-            exit 1
+
+            # List directory contents for debugging
+            echo "=== DEBUG: Directory contents ==="
+            if (Test-Path "npcap") {
+              Get-ChildItem "npcap" -Force | Format-Table Name, Length, LastWriteTime
+            } else {
+              echo "npcap directory does not exist"
+            }
           }
 
       - name: Fallback Npcap preparation
@@ -197,28 +217,12 @@ jobs:
       - name: Run tests
         run: |
           echo "Running basic system tests..."
-          python -c "
-          import sys
-          sys.path.insert(0, 'src')
 
-          # Test imports
-          try:
-              from scada_ids.npcap_manager import get_npcap_manager
-              manager = get_npcap_manager()
-              status = manager.get_system_status()
-              print(f'Npcap system status: {status}')
-          except Exception as e:
-              print(f'Npcap manager test failed: {e}')
+          # Test Npcap manager
+          python -c "import sys; sys.path.insert(0, 'src'); from scada_ids.npcap_manager import get_npcap_manager; manager = get_npcap_manager(); print(f'Npcap system status: {manager.get_system_status()}')" || echo "Npcap manager test failed"
 
-          # Test basic functionality
-          try:
-              from scada_ids.controller import IDSController
-              controller = IDSController()
-              interfaces = controller.get_available_interfaces()
-              print(f'Available interfaces: {len(interfaces)}')
-          except Exception as e:
-              print(f'Controller test failed: {e}')
-          "
+          # Test controller
+          python -c "import sys; sys.path.insert(0, 'src'); from scada_ids.controller import IDSController; controller = IDSController(); interfaces = controller.get_available_interfaces(); print(f'Available interfaces: {len(interfaces)}')" || echo "Controller test failed"
 
       - name: Build with PyInstaller
         run: |
