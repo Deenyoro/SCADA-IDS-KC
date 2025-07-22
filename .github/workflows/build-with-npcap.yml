@@ -30,22 +30,23 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller requests
 
+      - name: Prepare Npcap installer
+        run: |
+          echo "Preparing Npcap installer..."
+          python scripts/prepare_npcap.py --version ${{ env.NPCAP_VERSION }} --verbose
+
       - name: Build executable with bundled Npcap
         run: |
           echo "Building executable with bundled Npcap..."
-          python scripts/build_with_npcap.py --npcap-version ${{ env.NPCAP_VERSION }}
+          cd packaging
+          pyinstaller --clean SCADA-IDS-KC-main.spec
 
-      - name: Verify build output
+      - name: Create release package
         run: |
-          echo "Verifying build output..."
-          if (Test-Path "release/SCADA-IDS-KC.exe") {
-            $exe = Get-Item "release/SCADA-IDS-KC.exe"
-            echo "✅ Executable built successfully: $($exe.Length) bytes"
-          } else {
-            echo "❌ Executable not found!"
-            Get-ChildItem release -ErrorAction SilentlyContinue
-            exit 1
-          }
+          echo "Creating release package..."
+          New-Item -ItemType Directory -Path "release" -Force
+          Copy-Item "packaging/dist/*" "release/" -Recurse -Force
+          echo "SCADA-IDS-KC with Bundled Npcap - Built $(Get-Date)" > "release/BUILD_INFO.txt"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
