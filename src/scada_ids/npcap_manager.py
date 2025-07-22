@@ -50,16 +50,15 @@ class NpcapManager:
         "https://nmap.org/npcap/dist/npcap-{version}.exe"
     ]
     
-    # Default installation parameters
+    # Default installation parameters - CRITICAL: WinPcap compatibility MUST be enabled
     DEFAULT_INSTALL_PARAMS = [
         "/S",                    # Silent installation
-        "/winpcap_mode=yes",     # WinPcap compatibility mode
+        "/winpcap_mode=yes",     # WinPcap compatibility mode (REQUIRED for Scapy)
         "/admin_only=no",        # Allow non-admin access
         "/loopback_support=yes", # Enable loopback adapter
         "/dlt_null=no",          # Disable DLT_NULL
         "/dot11_support=no",     # Disable 802.11 raw WiFi (can cause issues)
-        "/vlan_support=no",      # Disable VLAN support (can cause issues)
-        "/winpcap_mode=yes"      # Ensure WinPcap compatibility
+        "/vlan_support=no"       # Disable VLAN support (can cause issues)
     ]
     
     def __init__(self, cache_dir: Optional[Path] = None):
@@ -86,6 +85,38 @@ class NpcapManager:
         if local_installer.exists():
             self.bundled_installer = local_installer
     
+    def verify_bundled_installer(self) -> Dict[str, Any]:
+        """Verify bundled Npcap installer configuration and parameters."""
+        result = {
+            "bundled_available": False,
+            "installer_path": None,
+            "installer_size": 0,
+            "install_parameters": self.DEFAULT_INSTALL_PARAMS.copy(),
+            "winpcap_compatibility": False,
+            "admin_only_disabled": False,
+            "verified": False
+        }
+
+        if not self.bundled_installer or not self.bundled_installer.exists():
+            return result
+
+        result["bundled_available"] = True
+        result["installer_path"] = str(self.bundled_installer)
+        result["installer_size"] = self.bundled_installer.stat().st_size
+
+        # Check if our parameters include WinPcap compatibility
+        for param in self.DEFAULT_INSTALL_PARAMS:
+            if "winpcap_mode=yes" in param:
+                result["winpcap_compatibility"] = True
+            if "admin_only=no" in param:
+                result["admin_only_disabled"] = True
+
+        result["verified"] = (result["winpcap_compatibility"] and
+                            result["admin_only_disabled"] and
+                            result["installer_size"] > 500000)  # Reasonable size check
+
+        return result
+
     def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive Npcap system status."""
         if not self.is_windows:
@@ -125,48 +156,132 @@ class NpcapManager:
     def ensure_npcap_available(self, auto_install: bool = True) -> bool:
         """
         Ensure Npcap is available and properly configured.
-        
+
+        PRIORITY ORDER (unless use_system_npcap is True):
+        1. Install bundled Npcap with WinPcap compatibility (if available)
+        2. Use existing compatible Npcap installation
+        3. Try to fix existing incompatible installation
+        4. Fall back to system installations (Wireshark, etc.)
+
         Args:
             auto_install: Whether to automatically install if missing
-            
+
         Returns:
             True if Npcap is available and working
         """
         logger.info("=== ENSURING NPCAP AVAILABILITY ===")
-        
+
         if not self.is_windows:
             logger.info("Non-Windows platform, Npcap not required")
             return True
-        
+
+        # Check user preference for system Npcap
+        use_system_npcap = self._should_use_system_npcap()
+
         status = self.get_system_status()
-        
-        # Check if already properly installed
-        if (status["installed"] and 
-            status["service_running"] and 
+
+        # PRIORITY 1: Use bundled installer by default (unless user overrides)
+        if not use_system_npcap and self.bundled_installer and auto_install:
+            logger.info("PRIORITY 1: Using bundled Npcap installer (default behavior)")
+
+            # Check if we need to install/reinstall bundled Npcap
+            needs_bundled_install = (
+                not status["installed"] or  # No Npcap at all
+                not status["service_running"] or  # Service not running
+                not status["winpcap_compatible"]  # Missing WinPcap compatibility
+            )
+
+            if needs_bundled_install:
+                logger.info("Installing bundled Npcap with WinPcap compatibility...")
+                if self.install_npcap():
+                    logger.info("SUCCESS: Bundled Npcap installation completed")
+                    return True
+                else:
+                    logger.warning("FALLBACK: Bundled Npcap installation failed, trying system installations")
+            else:
+                logger.info("Bundled Npcap already properly installed")
+                return True
+
+        # PRIORITY 2: Check if existing installation is already compatible
+        if (status["installed"] and
+            status["service_running"] and
             status["winpcap_compatible"]):
-            logger.info("Npcap is already properly installed and configured")
+            logger.info("PRIORITY 2: Using existing compatible Npcap installation")
             return True
-        
-        # Try to use existing installation first
+
+        # PRIORITY 3: Try to fix existing installation
         if status["installed"] and not status["service_running"]:
-            logger.info("Npcap installed but service not running, attempting to start...")
+            logger.info("PRIORITY 3: Npcap installed but service not running, attempting to start...")
             if self._start_npcap_service():
-                return True
-        
-        # Try fallback installations
+                # Re-check compatibility after service start
+                updated_status = self.get_system_status()
+                if updated_status["winpcap_compatible"]:
+                    logger.info("SUCCESS: Service started and WinPcap compatibility confirmed")
+                    return True
+                else:
+                    logger.warning("Service started but WinPcap compatibility still missing")
+
+        # PRIORITY 4: Try fallback installations (Wireshark, etc.)
         if status["fallback_detected"]:
-            logger.info("Using fallback Npcap installation")
+            logger.info("PRIORITY 4: Attempting to use fallback Npcap installation")
             if self._configure_fallback_installation():
+                # Re-check compatibility after fallback configuration
+                updated_status = self.get_system_status()
+                if updated_status["winpcap_compatible"]:
+                    logger.info("SUCCESS: Fallback installation configured with WinPcap compatibility")
+                    return True
+                else:
+                    logger.warning("Fallback installation lacks WinPcap compatibility")
+
+        # FINAL FALLBACK: Try bundled installer even if user prefers system Npcap
+        if use_system_npcap and self.bundled_installer and auto_install:
+            logger.warning("FINAL FALLBACK: System Npcap failed, trying bundled installer anyway")
+            if self.install_npcap():
+                logger.info("SUCCESS: Bundled Npcap installation completed as fallback")
                 return True
-        
-        # Auto-install if requested
-        if auto_install:
-            logger.info("Installing Npcap automatically...")
-            return self.install_npcap()
-        
-        logger.error("Npcap not available and auto-install disabled")
+
+        logger.error("FAILED: All Npcap installation and configuration attempts failed")
         return False
-    
+
+    def _should_use_system_npcap(self) -> bool:
+        """
+        Check if user has configured to use system Npcap instead of bundled installer.
+
+        Checks multiple configuration sources in order:
+        1. Environment variable: SCADA_IDS_USE_SYSTEM_NPCAP
+        2. Settings configuration: network.use_system_npcap
+        3. Default: False (prioritize bundled)
+
+        Returns:
+            True if should use system Npcap, False if should prioritize bundled
+        """
+        # Check environment variable first
+        env_value = os.environ.get('SCADA_IDS_USE_SYSTEM_NPCAP', '').lower()
+        if env_value in ('true', '1', 'yes', 'on'):
+            logger.info("Environment variable SCADA_IDS_USE_SYSTEM_NPCAP=true - using system Npcap")
+            return True
+        elif env_value in ('false', '0', 'no', 'off'):
+            logger.info("Environment variable SCADA_IDS_USE_SYSTEM_NPCAP=false - using bundled Npcap")
+            return False
+
+        # Check settings configuration
+        try:
+            from .settings import get_settings
+            settings = get_settings()
+            use_system = settings.network.use_system_npcap
+
+            if use_system:
+                logger.info("Configuration setting use_system_npcap=true - using system Npcap")
+            else:
+                logger.info("Configuration setting use_system_npcap=false - using bundled Npcap (default)")
+
+            return use_system
+
+        except Exception as e:
+            logger.debug(f"Could not read settings for use_system_npcap: {e}")
+            logger.info("Using default: prioritize bundled Npcap")
+            return False
+
     def download_npcap(self, version: str = "1.82", force: bool = False) -> Optional[Path]:
         """
         Download Npcap installer.

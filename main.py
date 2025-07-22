@@ -273,6 +273,9 @@ def run_cli_mode(args):
         if args.diagnose_npcap:
             return diagnose_npcap_system()
 
+        if args.install_npcap:
+            return install_npcap_force()
+
         if args.monitor:
             return run_monitoring_cli(controller, args)
         
@@ -562,6 +565,21 @@ def diagnose_npcap_system():
         # Display results
         print(f"\nPlatform: {results.get('platform', 'unknown')}")
 
+        # Show Npcap source preference
+        try:
+            from src.scada_ids.npcap_manager import get_npcap_manager
+            manager = get_npcap_manager()
+            use_system = manager._should_use_system_npcap()
+            bundled_available = manager.bundled_installer is not None
+
+            print(f"\nNPCAP SOURCE CONFIGURATION:")
+            print(f"  Bundled installer available: {bundled_available}")
+            print(f"  User preference: {'System Npcap' if use_system else 'Bundled Npcap (default)'}")
+            print(f"  Effective behavior: {'Will use system installations' if use_system else 'Will prioritize bundled installer'}")
+
+        except Exception as e:
+            print(f"\nNPCAP SOURCE: Could not determine preference ({e})")
+
         # Service status
         service_status = results.get('service_status', {})
         print(f"\nNPCAP SERVICE:")
@@ -636,11 +654,68 @@ def diagnose_npcap_system():
         return 1
 
 
+def install_npcap_force():
+    """Force installation of bundled Npcap."""
+    try:
+        print("=== FORCE NPCAP INSTALLATION ===")
+
+        if sys.platform != "win32":
+            print("Npcap installation is only available on Windows.")
+            return 0
+
+        from src.scada_ids.npcap_manager import get_npcap_manager
+
+        # Get Npcap manager
+        npcap_manager = get_npcap_manager()
+
+        # Check if bundled installer is available
+        if not npcap_manager.bundled_installer:
+            print("ERROR: No bundled Npcap installer found.")
+            print("This build does not include an embedded Npcap installer.")
+            print("Please download Npcap manually from: https://npcap.com/")
+            return 1
+
+        print(f"Found bundled Npcap installer: {npcap_manager.bundled_installer}")
+
+        # Check admin privileges
+        if not npcap_manager._is_admin():
+            print("ERROR: Administrator privileges required for Npcap installation.")
+            print("Please run this command as Administrator.")
+            return 1
+
+        print("Installing bundled Npcap with WinPcap compatibility...")
+        print("This will overwrite any existing Npcap installation.")
+
+        # Force installation
+        success = npcap_manager.install_npcap()
+
+        if success:
+            print("SUCCESS: Npcap installation completed successfully!")
+            print("WinPcap compatibility mode has been enabled.")
+            print("You can now use packet capture functionality.")
+            return 0
+        else:
+            print("ERROR: Npcap installation failed.")
+            print("Please check the logs for details or install manually.")
+            return 1
+
+    except Exception as e:
+        print(f"ERROR: Npcap installation failed: {e}")
+        return 1
+
+
 def run_monitoring_cli(controller, args):
     """Run monitoring in CLI mode."""
     logger = logging.getLogger("scada_ids.main")
-    
+
     try:
+        # Apply CLI overrides to settings
+        if hasattr(args, 'use_system_npcap') and args.use_system_npcap:
+            from src.scada_ids.settings import get_settings
+            settings = get_settings()
+            settings.network.use_system_npcap = True
+            logger.info("CLI override: Using system Npcap instead of bundled installer")
+
         interface = args.interface
         duration = args.duration
         
@@ -1084,6 +1159,11 @@ Examples:
                        help='Test notification system (CLI mode)')
     parser.add_argument('--diagnose-npcap', action='store_true',
                        help='Run comprehensive Npcap system diagnostics (Windows only)')
+    parser.add_argument('--install-npcap', action='store_true',
+                       help='Force installation of bundled Npcap (Windows only)')
+    parser.add_argument('--use-system-npcap', action='store_true',
+                       help='Use system-installed Npcap (Wireshark/manual) instead of bundled installer. ' +
+                            'By default, SCADA-IDS-KC prioritizes its bundled Npcap installer for optimal compatibility.')
     parser.add_argument('--model-info', action='store_true',
                        help='Show detailed ML model information (CLI mode)')
     parser.add_argument('--reload-models', action='store_true',

@@ -44,6 +44,7 @@ class NetworkSettings(BaseSettings):
     bpf_filter: str = Field("tcp and tcp[13]=2", description="BPF filter for packet capture")
     promiscuous_mode: bool = Field(True, description="Enable promiscuous mode")
     capture_timeout: int = Field(1, description="Capture timeout in seconds", ge=1, le=60)
+    use_system_npcap: bool = Field(False, description="Use system Npcap instead of bundled installer (False = prioritize bundled)")
     
     def __init__(self, **kwargs):
         # Load from SIKC.cfg first, then override with any kwargs
