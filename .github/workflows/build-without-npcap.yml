@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -126,31 +126,8 @@ jobs:
             Copy-Item "docs/" "release/docs/" -Recurse -ErrorAction SilentlyContinue
           }
 
-          # Create installation guide for standalone version
-          $installGuide = "# SCADA-IDS-KC Standalone - Installation Guide`n`n" +
-            "## System Requirements`n" +
-            "This standalone build requires Npcap to be installed separately on your system.`n`n" +
-            "## Npcap Installation`n" +
-            "1. Download Npcap from: https://npcap.com/`n" +
-            "2. Install with these options:`n" +
-            "   - WinPcap API compatibility: ON`n" +
-            "   - Restrict to administrators: OFF (recommended)`n" +
-            "   - Install loopback adapter: ON (optional)`n" +
-            "3. Restart the system after installation`n`n" +
-            "## Alternative: Use Wireshark`n" +
-            "If you have Wireshark installed, it includes Npcap and should work automatically.`n`n" +
-            "## Usage`n" +
-            "Run SCADA-IDS-KC-standalone.exe as Administrator for full functionality.`n`n" +
-            "For command-line usage: SCADA-IDS-KC-standalone.exe --cli --help`n" +
-            "For GUI mode: Double-click SCADA-IDS-KC-standalone.exe`n`n" +
-            "## Troubleshooting`n" +
-            "Run diagnostics: SCADA-IDS-KC-standalone.exe --cli --diagnose-npcap`n`n" +
-            "## When to Use This Build`n" +
-            "- You already have Npcap or Wireshark installed`n" +
-            "- You prefer manual control over Npcap installation`n" +
-            "- You want a smaller executable file`n" +
-            "- You're deploying in environments with existing packet capture infrastructure"
-          $installGuide | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
+          # Create simple installation guide
+          "# SCADA-IDS-KC Standalone`n`nRequires Npcap to be installed separately.`nDownload from: https://npcap.com/`nRun as Administrator for full functionality." | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
 
           # Create version info
           $version = Get-Date -Format "yyyy.MM.dd.HHmm"
@@ -167,7 +144,7 @@ jobs:
           $versionInfo | ConvertTo-Json | Out-File -FilePath "release/version.json" -Encoding UTF8
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: scada-ids-kc-standalone-${{ matrix.os }}-py${{ matrix.python-version }}
           path: release/
@@ -175,7 +152,7 @@ jobs:
 
       - name: Upload build logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-logs-standalone-${{ matrix.os }}-py${{ matrix.python-version }}
           path: |
@@ -232,7 +209,7 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts/
 

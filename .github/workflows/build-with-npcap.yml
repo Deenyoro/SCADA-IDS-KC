@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -52,7 +52,7 @@ jobs:
 
       - name: Cache Npcap installer
         id: cache-npcap
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: npcap/
           key: npcap-${{ env.NPCAP_VERSION }}-${{ hashFiles('scripts/prepare_npcap.py') }}
@@ -87,7 +87,7 @@ jobs:
           }
 
       - name: Upload Npcap artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: steps.prepare.outputs.success == 'true'
         with:
           name: npcap-installer
@@ -110,13 +110,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Download Npcap artifacts
         if: needs.prepare-npcap.outputs.npcap-prepared == 'true'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: npcap-installer
           path: npcap/
@@ -225,24 +225,8 @@ jobs:
             Copy-Item "docs/" "release/docs/" -Recurse -ErrorAction SilentlyContinue
           }
 
-          # Create installation guide
-          $installGuide = "# SCADA-IDS-KC with Bundled Npcap - Installation Guide`n`n" +
-            "## Automatic Installation`n" +
-            "This build includes an embedded Npcap installer that will be automatically`n" +
-            "installed when needed for packet capture functionality.`n`n" +
-            "## Manual Installation`n" +
-            "If automatic installation fails, you can manually install Npcap:`n" +
-            "1. Download Npcap from: https://npcap.com/`n" +
-            "2. Install with WinPcap compatibility mode enabled`n" +
-            "3. Ensure Restrict to administrators is disabled`n" +
-            "4. Restart the system after installation`n`n" +
-            "## Usage`n" +
-            "Run SCADA-IDS-KC-with-npcap.exe as Administrator for full functionality.`n`n" +
-            "For command-line usage: SCADA-IDS-KC-with-npcap.exe --cli --help`n" +
-            "For GUI mode: Double-click SCADA-IDS-KC-with-npcap.exe`n`n" +
-            "## Troubleshooting`n" +
-            "Run diagnostics: SCADA-IDS-KC-with-npcap.exe --cli --diagnose-npcap"
-          $installGuide | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
+          # Create simple installation guide
+          "# SCADA-IDS-KC with Bundled Npcap`n`nThis build includes embedded Npcap installer.`nRun as Administrator for full functionality." | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
 
           # Create version info
           $version = Get-Date -Format "yyyy.MM.dd.HHmm"
@@ -260,7 +244,7 @@ jobs:
           $versionInfo | ConvertTo-Json | Out-File -FilePath "release/version.json" -Encoding UTF8
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: scada-ids-kc-with-npcap-${{ matrix.os }}-py${{ matrix.python-version }}
           path: release/
@@ -268,7 +252,7 @@ jobs:
 
       - name: Upload build logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-logs
           path: |
@@ -323,7 +307,7 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts/
 
