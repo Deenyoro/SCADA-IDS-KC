@@ -75,6 +75,10 @@ packaging/*.exe
 packaging/*.msi
 packaging/*.deb
 packaging/*.rpm
+packaging/dist/
+packaging/build/
+release/
+*.exe
 
 # Additional Python exclusions
 htmlcov/

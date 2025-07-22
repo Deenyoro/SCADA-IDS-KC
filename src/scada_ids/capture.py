@@ -63,10 +63,13 @@ class PacketSniffer:
         self._stop_event = threading.Event()
         self._lock = threading.RLock()  # Reentrant lock for thread safety
 
-        # Initialize Npcap checker for Windows
+        # Initialize Npcap checker and manager for Windows
         self.npcap_checker = None
+        self.npcap_manager = None
         if sys.platform == "win32":
             self.npcap_checker = NpcapChecker()
+            from .npcap_manager import get_npcap_manager
+            self.npcap_manager = get_npcap_manager()
 
         self.interfaces = self._get_available_interfaces()
         self.current_interface = self.settings.network.interface
@@ -754,6 +757,15 @@ class PacketSniffer:
     def _capture_loop(self):
         """Main capture loop running in separate thread with enhanced debugging."""
         logger.debug("=== PACKET CAPTURE LOOP START ===")
+
+        # Ensure Npcap is available on Windows before starting capture
+        if sys.platform == "win32" and self.npcap_manager:
+            logger.info("Ensuring Npcap is available for packet capture...")
+            if not self.npcap_manager.ensure_npcap_available(auto_install=True):
+                logger.error("CRITICAL: Npcap is not available and auto-installation failed")
+                logger.error("Please install Npcap manually from https://npcap.com/")
+                self.is_running = False
+                return
 
         try:
             # Try with specified interface first, fall back to default if it fails

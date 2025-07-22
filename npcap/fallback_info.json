@@ -1,0 +1,14 @@
+{
+  "npcap_bundled": true,
+  "installer_path": "C:\\Git\\SCADA-IDS-KC\\npcap\\npcap-installer.exe",
+  "fallback_sources": [
+    "Existing Npcap installation",
+    "Wireshark bundled Npcap",
+    "System-wide Npcap installation"
+  ],
+  "detection_methods": [
+    "Registry check: HKLM\\SYSTEM\\CurrentControlSet\\Services\\npcap",
+    "Service check: sc query npcap",
+    "Wireshark check: Program Files\\Wireshark"
+  ]
+}

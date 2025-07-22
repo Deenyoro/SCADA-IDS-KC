@@ -89,40 +89,41 @@ def check_system_requirements():
     if sys.version_info < (3, 8):
         issues.append(f"Python 3.8+ required, found {sys.version}")
     
-    # Comprehensive Npcap check on Windows
+    # Comprehensive Npcap check and auto-installation on Windows
     if sys.platform == "win32":
         try:
-            from src.scada_ids.npcap_checker import check_npcap_system
+            from src.scada_ids.npcap_manager import get_npcap_manager
 
-            # Run comprehensive Npcap diagnostics
-            npcap_status = check_npcap_system()
+            # Get Npcap manager and check system status
+            npcap_manager = get_npcap_manager()
+            npcap_status = npcap_manager.get_system_status()
 
             # Check for critical Npcap issues
-            if npcap_status.get("critical_issues"):
-                for issue in npcap_status["critical_issues"]:
+            if npcap_status.get("issues"):
+                for issue in npcap_status["issues"]:
                     issues.append(f"Npcap: {issue}")
 
             # Check for warnings
-            if npcap_status.get("warnings"):
-                for warning in npcap_status["warnings"]:
-                    warnings.append(f"Npcap: {warning}")
+            if npcap_status.get("recommendations"):
+                for rec in npcap_status["recommendations"]:
+                    warnings.append(f"Npcap: {rec}")
 
-            # Check service status
-            service_status = npcap_status.get("service_status", {})
-            if not service_status.get("service_running", False):
-                issues.append("Npcap service is not running - packet capture will fail")
+            # Try to ensure Npcap is available (with auto-install if bundled)
+            if npcap_status.get("bundled_available"):
+                warnings.append("Bundled Npcap installer available - will auto-install if needed")
 
-            # Check admin privileges if admin-only mode
-            registry_config = npcap_status.get("registry_config", {})
-            admin_status = npcap_status.get("admin_privileges", {})
+            # Check if Npcap is working
+            if not (npcap_status.get("installed") and
+                   npcap_status.get("service_running") and
+                   npcap_status.get("winpcap_compatible")):
 
-            if registry_config.get("admin_only", False) and not admin_status.get("is_admin", False):
-                issues.append("Administrator privileges required (Npcap is in admin-only mode)")
-
-            # Basic interface enumeration test
-            interface_test = npcap_status.get("interface_enumeration", {})
-            if interface_test.get("interfaces_found", 0) == 0:
-                issues.append("No network interfaces found (Npcap driver issue)")
+                # Try to use fallback installations
+                if npcap_status.get("fallback_detected"):
+                    warnings.append("Using fallback Npcap installation (Wireshark/existing)")
+                elif npcap_status.get("bundled_available"):
+                    warnings.append("Npcap will be automatically installed when needed")
+                else:
+                    issues.append("Npcap not available and no bundled installer found")
 
         except ImportError:
             issues.append("Scapy not available for packet capture")

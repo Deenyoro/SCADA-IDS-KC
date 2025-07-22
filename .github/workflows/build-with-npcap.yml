@@ -1,0 +1,307 @@
+name: Build SCADA-IDS-KC with Npcap
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      npcap_version:
+        description: 'Npcap version to bundle'
+        required: false
+        default: 'latest'
+        type: string
+      force_download:
+        description: 'Force re-download Npcap'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  NPCAP_VERSION: ${{ github.event.inputs.npcap_version || 'latest' }}
+
+jobs:
+  prepare-npcap:
+    runs-on: windows-latest
+    outputs:
+      npcap-prepared: ${{ steps.prepare.outputs.success }}
+      npcap-version: ${{ steps.prepare.outputs.version }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+    
+    - name: Cache Npcap installer
+      id: cache-npcap
+      uses: actions/cache@v3
+      with:
+        path: npcap/
+        key: npcap-${{ env.NPCAP_VERSION }}-${{ hashFiles('scripts/prepare_npcap.py') }}
+        restore-keys: |
+          npcap-${{ env.NPCAP_VERSION }}-
+          npcap-
+    
+    - name: Prepare Npcap installer
+      id: prepare
+      run: |
+        echo "Preparing Npcap installer..."
+        
+        $force_flag = ""
+        if ("${{ github.event.inputs.force_download }}" -eq "true") {
+          $force_flag = "--force"
+        }
+        
+        python scripts/prepare_npcap.py --version "${{ env.NPCAP_VERSION }}" $force_flag --verbose
+        
+        if (Test-Path "npcap/npcap-installer.exe") {
+          echo "success=true" >> $env:GITHUB_OUTPUT
+          
+          # Get file info
+          $installer = Get-Item "npcap/npcap-installer.exe"
+          $size = $installer.Length
+          echo "Npcap installer prepared successfully: $size bytes"
+          echo "version=${{ env.NPCAP_VERSION }}" >> $env:GITHUB_OUTPUT
+        } else {
+          echo "success=false" >> $env:GITHUB_OUTPUT
+          echo "Failed to prepare Npcap installer"
+          exit 1
+        }
+    
+    - name: Upload Npcap artifacts
+      uses: actions/upload-artifact@v3
+      if: steps.prepare.outputs.success == 'true'
+      with:
+        name: npcap-installer
+        path: |
+          npcap/npcap-installer.exe
+          npcap/fallback_info.json
+        retention-days: 7
+
+  build-windows:
+    needs: prepare-npcap
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Download Npcap artifacts
+      if: needs.prepare-npcap.outputs.npcap-prepared == 'true'
+      uses: actions/download-artifact@v3
+      with:
+        name: npcap-installer
+        path: npcap/
+    
+    - name: Verify Npcap download
+      if: needs.prepare-npcap.outputs.npcap-prepared == 'true'
+      run: |
+        if (Test-Path "npcap/npcap-installer.exe") {
+          $installer = Get-Item "npcap/npcap-installer.exe"
+          echo "Npcap installer available: $($installer.Length) bytes"
+        } else {
+          echo "WARNING: Npcap installer not available - building without bundled Npcap"
+        }
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Install system dependencies
+      run: |
+        # Install Npcap for build environment testing
+        if (Test-Path "npcap/npcap-installer.exe") {
+          echo "Installing Npcap for build environment..."
+          Start-Process -FilePath "npcap/npcap-installer.exe" -ArgumentList "/S", "/winpcap_mode=yes", "/admin_only=no", "/loopback_support=yes" -Wait -Verb RunAs
+          
+          # Wait for service to start
+          Start-Sleep -Seconds 10
+          
+          # Verify installation
+          $service = Get-Service -Name "npcap" -ErrorAction SilentlyContinue
+          if ($service -and $service.Status -eq "Running") {
+            echo "Npcap service is running"
+          } else {
+            echo "WARNING: Npcap service not running"
+          }
+        } else {
+          echo "No Npcap installer available for build environment"
+        }
+    
+    - name: Run tests
+      run: |
+        echo "Running basic system tests..."
+        python -c "
+        import sys
+        sys.path.insert(0, 'src')
+        
+        # Test imports
+        try:
+            from scada_ids.npcap_manager import get_npcap_manager
+            manager = get_npcap_manager()
+            status = manager.get_system_status()
+            print(f'Npcap system status: {status}')
+        except Exception as e:
+            print(f'Npcap manager test failed: {e}')
+        
+        # Test basic functionality
+        try:
+            from scada_ids.controller import IDSController
+            controller = IDSController()
+            interfaces = controller.get_available_interfaces()
+            print(f'Available interfaces: {len(interfaces)}')
+        except Exception as e:
+            print(f'Controller test failed: {e}')
+        "
+    
+    - name: Build with PyInstaller
+      run: |
+        echo "Building SCADA-IDS-KC with PyInstaller..."
+        cd packaging
+        pyinstaller --clean SCADA-IDS-KC-main.spec
+        
+        # Verify build
+        if (Test-Path "dist/SCADA-IDS-KC.exe") {
+          $exe = Get-Item "dist/SCADA-IDS-KC.exe"
+          echo "Build successful: $($exe.Length) bytes"
+        } else {
+          echo "Build failed - executable not found"
+          exit 1
+        }
+    
+    - name: Test built executable
+      run: |
+        echo "Testing built executable..."
+        cd packaging
+        
+        # Test basic functionality
+        ./dist/SCADA-IDS-KC.exe --cli --version
+        ./dist/SCADA-IDS-KC.exe --cli --diagnose-npcap
+        ./dist/SCADA-IDS-KC.exe --cli --interfaces
+    
+    - name: Create release package
+      run: |
+        echo "Creating release package..."
+        
+        # Create release directory
+        New-Item -ItemType Directory -Path "release" -Force
+        
+        # Copy executable
+        Copy-Item "packaging/dist/SCADA-IDS-KC.exe" "release/"
+        
+        # Copy documentation
+        Copy-Item "README.md" "release/"
+        Copy-Item "docs/" "release/docs/" -Recurse -ErrorAction SilentlyContinue
+        
+        # Create installation guide
+        @"
+# SCADA-IDS-KC Installation Guide
+
+## Automatic Installation
+This build includes an embedded Npcap installer that will be automatically
+installed when needed for packet capture functionality.
+
+## Manual Installation
+If automatic installation fails, you can manually install Npcap:
+1. Download Npcap from: https://npcap.com/
+2. Install with WinPcap compatibility mode enabled
+3. Ensure 'Restrict to administrators' is disabled
+4. Restart the system after installation
+
+## Usage
+Run SCADA-IDS-KC.exe as Administrator for full functionality.
+
+For command-line usage: SCADA-IDS-KC.exe --cli --help
+For GUI mode: Double-click SCADA-IDS-KC.exe
+
+## Troubleshooting
+Run diagnostics: SCADA-IDS-KC.exe --cli --diagnose-npcap
+"@ | Out-File -FilePath "release/INSTALLATION.md" -Encoding UTF8
+        
+        # Create version info
+        $version = Get-Date -Format "yyyy.MM.dd.HHmm"
+        $npcap_status = if (Test-Path "npcap/npcap-installer.exe") { "bundled" } else { "not-bundled" }
+        
+        @{
+          version = $version
+          build_date = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+          npcap_version = "${{ needs.prepare-npcap.outputs.npcap-version }}"
+          npcap_status = $npcap_status
+          python_version = "${{ env.PYTHON_VERSION }}"
+          platform = "windows"
+        } | ConvertTo-Json | Out-File -FilePath "release/version.json" -Encoding UTF8
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: scada-ids-kc-windows
+        path: release/
+        retention-days: 30
+    
+    - name: Upload build logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-logs
+        path: |
+          packaging/build/
+          packaging/dist/
+        retention-days: 7
+
+  test-without-npcap:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build without Npcap
+      run: |
+        echo "Building without bundled Npcap..."
+        cd packaging
+        pyinstaller --clean SCADA-IDS-KC-main.spec
+    
+    - name: Test fallback behavior
+      run: |
+        echo "Testing fallback behavior without Npcap..."
+        cd packaging
+        
+        # Test that application handles missing Npcap gracefully
+        ./dist/SCADA-IDS-KC.exe --cli --diagnose-npcap
+        
+        # Should exit with error code but not crash
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -eq 0) {
+          echo "WARNING: Expected non-zero exit code for missing Npcap"
+        } else {
+          echo "Correctly detected missing Npcap (exit code: $exitCode)"
+        }

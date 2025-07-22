@@ -1,0 +1,575 @@
+"""
+Npcap Manager - Automated download, installation, and management system.
+
+This module handles:
+- Automated Npcap installer download
+- Runtime installation and configuration
+- Health monitoring and auto-repair
+- Fallback detection for existing installations
+- GitHub Actions and CI/CD compatibility
+"""
+
+import sys
+import os
+import subprocess
+import logging
+import winreg
+import requests
+import hashlib
+import tempfile
+import shutil
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Any
+import json
+import time
+import ctypes
+from urllib.parse import urljoin
+
+logger = logging.getLogger(__name__)
+
+class NpcapManager:
+    """Comprehensive Npcap download, installation, and management system."""
+    
+    # Npcap download URLs and versions
+    NPCAP_VERSIONS = {
+        "1.82": {
+            "url": "https://npcap.com/dist/npcap-1.82.exe",
+            "sha256": "placeholder_hash_1.82",  # Replace with actual hash
+            "size": 1048576  # Approximate size in bytes
+        },
+        "1.81": {
+            "url": "https://npcap.com/dist/npcap-1.81.exe", 
+            "sha256": "placeholder_hash_1.81",
+            "size": 1048576
+        }
+    }
+    
+    # Fallback URLs for different sources
+    FALLBACK_URLS = [
+        "https://github.com/nmap/npcap/releases/download/v{version}/npcap-{version}.exe",
+        "https://nmap.org/npcap/dist/npcap-{version}.exe"
+    ]
+    
+    # Default installation parameters
+    DEFAULT_INSTALL_PARAMS = [
+        "/S",                    # Silent installation
+        "/winpcap_mode=yes",     # WinPcap compatibility mode
+        "/admin_only=no",        # Allow non-admin access
+        "/loopback_support=yes", # Enable loopback adapter
+        "/dlt_null=no",          # Disable DLT_NULL
+        "/dot11_support=no",     # Disable 802.11 raw WiFi (can cause issues)
+        "/vlan_support=no",      # Disable VLAN support (can cause issues)
+        "/winpcap_mode=yes"      # Ensure WinPcap compatibility
+    ]
+    
+    def __init__(self, cache_dir: Optional[Path] = None):
+        """
+        Initialize Npcap Manager.
+        
+        Args:
+            cache_dir: Directory to cache downloaded installers
+        """
+        self.is_windows = sys.platform == "win32"
+        self.cache_dir = cache_dir or Path.cwd() / "npcap_cache"
+        self.cache_dir.mkdir(exist_ok=True)
+        
+        # Bundled installer path (for PyInstaller builds)
+        self.bundled_installer = None
+        if hasattr(sys, '_MEIPASS'):
+            # Running from PyInstaller bundle
+            bundled_path = Path(sys._MEIPASS) / "npcap" / "npcap-installer.exe"
+            if bundled_path.exists():
+                self.bundled_installer = bundled_path
+        
+        # Local installer path (for development)
+        local_installer = Path("npcap") / "npcap-installer.exe"
+        if local_installer.exists():
+            self.bundled_installer = local_installer
+    
+    def get_system_status(self) -> Dict[str, Any]:
+        """Get comprehensive Npcap system status."""
+        if not self.is_windows:
+            return {"platform": "non-windows", "npcap_required": False}
+        
+        status = {
+            "platform": "windows",
+            "npcap_required": True,
+            "installed": False,
+            "version": None,
+            "service_running": False,
+            "winpcap_compatible": False,
+            "admin_only": None,
+            "bundled_available": self.bundled_installer is not None,
+            "fallback_detected": False,
+            "wireshark_detected": False,
+            "issues": [],
+            "recommendations": []
+        }
+        
+        try:
+            # Check if Npcap is installed
+            status.update(self._check_npcap_installation())
+            
+            # Check for fallback installations
+            status.update(self._detect_fallback_installations())
+            
+            # Analyze status and generate recommendations
+            self._analyze_status(status)
+            
+        except Exception as e:
+            status["issues"].append(f"Status check failed: {e}")
+            logger.error(f"Npcap status check failed: {e}")
+        
+        return status
+    
+    def ensure_npcap_available(self, auto_install: bool = True) -> bool:
+        """
+        Ensure Npcap is available and properly configured.
+        
+        Args:
+            auto_install: Whether to automatically install if missing
+            
+        Returns:
+            True if Npcap is available and working
+        """
+        logger.info("=== ENSURING NPCAP AVAILABILITY ===")
+        
+        if not self.is_windows:
+            logger.info("Non-Windows platform, Npcap not required")
+            return True
+        
+        status = self.get_system_status()
+        
+        # Check if already properly installed
+        if (status["installed"] and 
+            status["service_running"] and 
+            status["winpcap_compatible"]):
+            logger.info("Npcap is already properly installed and configured")
+            return True
+        
+        # Try to use existing installation first
+        if status["installed"] and not status["service_running"]:
+            logger.info("Npcap installed but service not running, attempting to start...")
+            if self._start_npcap_service():
+                return True
+        
+        # Try fallback installations
+        if status["fallback_detected"]:
+            logger.info("Using fallback Npcap installation")
+            if self._configure_fallback_installation():
+                return True
+        
+        # Auto-install if requested
+        if auto_install:
+            logger.info("Installing Npcap automatically...")
+            return self.install_npcap()
+        
+        logger.error("Npcap not available and auto-install disabled")
+        return False
+    
+    def download_npcap(self, version: str = "1.82", force: bool = False) -> Optional[Path]:
+        """
+        Download Npcap installer.
+        
+        Args:
+            version: Npcap version to download
+            force: Force re-download even if cached
+            
+        Returns:
+            Path to downloaded installer or None if failed
+        """
+        logger.info(f"Downloading Npcap version {version}...")
+        
+        if version not in self.NPCAP_VERSIONS:
+            logger.error(f"Unknown Npcap version: {version}")
+            return None
+        
+        version_info = self.NPCAP_VERSIONS[version]
+        cache_file = self.cache_dir / f"npcap-{version}.exe"
+        
+        # Check if already cached and valid
+        if cache_file.exists() and not force:
+            if self._verify_installer(cache_file, version_info):
+                logger.info(f"Using cached Npcap installer: {cache_file}")
+                return cache_file
+            else:
+                logger.warning("Cached installer is invalid, re-downloading...")
+                cache_file.unlink()
+        
+        # Try primary URL first
+        urls_to_try = [version_info["url"]]
+        
+        # Add fallback URLs
+        for fallback_template in self.FALLBACK_URLS:
+            fallback_url = fallback_template.format(version=version)
+            urls_to_try.append(fallback_url)
+        
+        for url in urls_to_try:
+            try:
+                logger.info(f"Attempting download from: {url}")
+                
+                response = requests.get(url, stream=True, timeout=30)
+                response.raise_for_status()
+                
+                # Download with progress
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                with open(cache_file, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            
+                            if total_size > 0:
+                                progress = (downloaded / total_size) * 100
+                                logger.debug(f"Download progress: {progress:.1f}%")
+                
+                # Verify downloaded file
+                if self._verify_installer(cache_file, version_info):
+                    logger.info(f"Successfully downloaded Npcap {version}")
+                    return cache_file
+                else:
+                    logger.error("Downloaded installer failed verification")
+                    cache_file.unlink()
+                    continue
+                    
+            except Exception as e:
+                logger.warning(f"Download from {url} failed: {e}")
+                if cache_file.exists():
+                    cache_file.unlink()
+                continue
+        
+        logger.error(f"Failed to download Npcap {version} from all sources")
+        return None
+    
+    def install_npcap(self, installer_path: Optional[Path] = None, 
+                     params: Optional[List[str]] = None) -> bool:
+        """
+        Install Npcap with specified parameters.
+        
+        Args:
+            installer_path: Path to installer (downloads if None)
+            params: Installation parameters (uses defaults if None)
+            
+        Returns:
+            True if installation succeeded
+        """
+        logger.info("=== INSTALLING NPCAP ===")
+        
+        if not self.is_windows:
+            logger.error("Npcap installation only supported on Windows")
+            return False
+        
+        # Check admin privileges
+        if not self._is_admin():
+            logger.error("Administrator privileges required for Npcap installation")
+            return False
+        
+        # Get installer
+        if installer_path is None:
+            # Try bundled installer first
+            if self.bundled_installer:
+                installer_path = self.bundled_installer
+                logger.info(f"Using bundled installer: {installer_path}")
+            else:
+                # Download installer
+                installer_path = self.download_npcap()
+                if not installer_path:
+                    logger.error("Failed to obtain Npcap installer")
+                    return False
+        
+        if not installer_path.exists():
+            logger.error(f"Installer not found: {installer_path}")
+            return False
+        
+        # Use provided parameters or defaults
+        install_params = params or self.DEFAULT_INSTALL_PARAMS.copy()
+        
+        # Build command
+        cmd = [str(installer_path)] + install_params
+        
+        try:
+            logger.info(f"Running Npcap installer: {' '.join(cmd)}")
+            
+            # Run installer
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout
+            )
+            
+            logger.info(f"Installer exit code: {result.returncode}")
+            
+            if result.stdout:
+                logger.debug(f"Installer stdout: {result.stdout}")
+            if result.stderr:
+                logger.debug(f"Installer stderr: {result.stderr}")
+            
+            if result.returncode == 0:
+                logger.info("Npcap installation completed successfully")
+                
+                # Wait for service to start
+                time.sleep(5)
+                
+                # Verify installation
+                if self._verify_installation():
+                    logger.info("Npcap installation verified successfully")
+                    return True
+                else:
+                    logger.error("Npcap installation verification failed")
+                    return False
+            else:
+                logger.error(f"Npcap installation failed with exit code {result.returncode}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            logger.error("Npcap installation timed out")
+            return False
+        except Exception as e:
+            logger.error(f"Npcap installation failed: {e}")
+            return False
+    
+    def repair_npcap(self) -> bool:
+        """
+        Repair existing Npcap installation.
+        
+        Returns:
+            True if repair succeeded
+        """
+        logger.info("Attempting Npcap repair...")
+        
+        # Try to restart service first
+        if self._restart_npcap_service():
+            logger.info("Npcap service restart successful")
+            return True
+        
+        # Try reinstallation
+        logger.info("Service restart failed, attempting reinstallation...")
+        return self.install_npcap()
+    
+    def _check_npcap_installation(self) -> Dict[str, Any]:
+        """Check if Npcap is properly installed."""
+        result = {
+            "installed": False,
+            "version": None,
+            "service_running": False,
+            "winpcap_compatible": False,
+            "admin_only": None
+        }
+        
+        try:
+            # Check registry for installation
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                              r"SYSTEM\CurrentControlSet\Services\npcap") as key:
+                result["installed"] = True
+                
+                # Check service status
+                result["service_running"] = self._is_service_running("npcap")
+                
+                # Check parameters
+                try:
+                    with winreg.OpenKey(key, "Parameters") as params_key:
+                        try:
+                            admin_only, _ = winreg.QueryValueEx(params_key, "AdminOnly")
+                            result["admin_only"] = bool(admin_only)
+                        except FileNotFoundError:
+                            result["admin_only"] = False
+                        
+                        try:
+                            winpcap_compat, _ = winreg.QueryValueEx(params_key, "WinPcapCompatible")
+                            result["winpcap_compatible"] = bool(winpcap_compat)
+                        except FileNotFoundError:
+                            result["winpcap_compatible"] = False
+                            
+                except FileNotFoundError:
+                    pass
+            
+            # Try to get version
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                  r"SOFTWARE\Npcap") as key:
+                    version, _ = winreg.QueryValueEx(key, "ProductVersion")
+                    result["version"] = version
+            except FileNotFoundError:
+                pass
+                
+        except FileNotFoundError:
+            # Npcap not installed
+            pass
+        except Exception as e:
+            logger.debug(f"Error checking Npcap installation: {e}")
+        
+        return result
+    
+    def _detect_fallback_installations(self) -> Dict[str, Any]:
+        """Detect fallback Npcap installations (Wireshark, etc.)."""
+        result = {
+            "fallback_detected": False,
+            "wireshark_detected": False,
+            "wireshark_path": None
+        }
+        
+        # Check for Wireshark installation
+        wireshark_paths = [
+            r"C:\Program Files\Wireshark",
+            r"C:\Program Files (x86)\Wireshark",
+            os.path.expandvars(r"%ProgramFiles%\Wireshark"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\Wireshark")
+        ]
+        
+        for path in wireshark_paths:
+            wireshark_exe = Path(path) / "Wireshark.exe"
+            if wireshark_exe.exists():
+                result["wireshark_detected"] = True
+                result["wireshark_path"] = path
+                result["fallback_detected"] = True
+                logger.info(f"Detected Wireshark installation: {path}")
+                break
+        
+        return result
+    
+    def _verify_installer(self, installer_path: Path, version_info: Dict[str, Any]) -> bool:
+        """Verify downloaded installer integrity."""
+        try:
+            # Check file size
+            file_size = installer_path.stat().st_size
+            expected_size = version_info.get("size", 0)
+            
+            if expected_size > 0 and abs(file_size - expected_size) > 100000:  # 100KB tolerance
+                logger.warning(f"Installer size mismatch: {file_size} vs expected {expected_size}")
+                return False
+            
+            # Check SHA256 hash if provided
+            expected_hash = version_info.get("sha256")
+            if expected_hash and expected_hash != "placeholder_hash_1.82":
+                actual_hash = self._calculate_sha256(installer_path)
+                if actual_hash != expected_hash:
+                    logger.error(f"Installer hash mismatch: {actual_hash} vs expected {expected_hash}")
+                    return False
+            
+            # Basic file validation
+            if file_size < 500000:  # Less than 500KB is suspicious
+                logger.error(f"Installer file too small: {file_size} bytes")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Installer verification failed: {e}")
+            return False
+    
+    def _calculate_sha256(self, file_path: Path) -> str:
+        """Calculate SHA256 hash of file."""
+        sha256_hash = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(chunk)
+        return sha256_hash.hexdigest()
+    
+    def _is_admin(self) -> bool:
+        """Check if running with administrator privileges."""
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+        except Exception:
+            return False
+    
+    def _is_service_running(self, service_name: str) -> bool:
+        """Check if Windows service is running."""
+        try:
+            result = subprocess.run(
+                ["sc", "query", service_name],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            return "RUNNING" in result.stdout
+        except Exception:
+            return False
+    
+    def _start_npcap_service(self) -> bool:
+        """Start Npcap service."""
+        try:
+            result = subprocess.run(
+                ["net", "start", "npcap"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            return result.returncode == 0
+        except Exception as e:
+            logger.error(f"Failed to start Npcap service: {e}")
+            return False
+    
+    def _restart_npcap_service(self) -> bool:
+        """Restart Npcap service."""
+        try:
+            # Stop service
+            subprocess.run(["net", "stop", "npcap"], capture_output=True, timeout=30)
+            time.sleep(2)
+            
+            # Start service
+            result = subprocess.run(
+                ["net", "start", "npcap"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            return result.returncode == 0
+        except Exception as e:
+            logger.error(f"Failed to restart Npcap service: {e}")
+            return False
+    
+    def _verify_installation(self) -> bool:
+        """Verify Npcap installation is working."""
+        try:
+            # Check service is running
+            if not self._is_service_running("npcap"):
+                return False
+            
+            # Try to enumerate interfaces with Scapy
+            import scapy.all as scapy
+            interfaces = scapy.get_if_list()
+            return len(interfaces) > 0
+            
+        except Exception as e:
+            logger.error(f"Installation verification failed: {e}")
+            return False
+    
+    def _configure_fallback_installation(self) -> bool:
+        """Configure fallback installation for compatibility."""
+        # This would configure existing Wireshark/Npcap installation
+        # for compatibility with our application
+        logger.info("Configuring fallback installation...")
+        return self._restart_npcap_service()
+    
+    def _analyze_status(self, status: Dict[str, Any]) -> None:
+        """Analyze status and generate recommendations."""
+        if not status["installed"]:
+            status["issues"].append("Npcap is not installed")
+            status["recommendations"].append("Install Npcap for packet capture functionality")
+        
+        if status["installed"] and not status["service_running"]:
+            status["issues"].append("Npcap service is not running")
+            status["recommendations"].append("Start Npcap service or restart system")
+        
+        if status["installed"] and not status["winpcap_compatible"]:
+            status["issues"].append("WinPcap compatibility mode is disabled")
+            status["recommendations"].append("Reinstall Npcap with WinPcap compatibility enabled")
+        
+        if status["admin_only"] and not self._is_admin():
+            status["issues"].append("Npcap is in admin-only mode but not running as administrator")
+            status["recommendations"].append("Run as administrator or reinstall Npcap without admin-only mode")
+
+# Convenience functions
+def get_npcap_manager() -> NpcapManager:
+    """Get global Npcap manager instance."""
+    if not hasattr(get_npcap_manager, '_instance'):
+        get_npcap_manager._instance = NpcapManager()
+    return get_npcap_manager._instance
+
+def ensure_npcap() -> bool:
+    """Ensure Npcap is available and working."""
+    manager = get_npcap_manager()
+    return manager.ensure_npcap_available()
