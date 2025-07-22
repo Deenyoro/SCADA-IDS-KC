@@ -65,12 +65,12 @@ jobs:
         run: |
           echo "Preparing Npcap installer..."
 
-          $force_flag = ""
+          $args = @("scripts/prepare_npcap.py", "--version", "${{ env.NPCAP_VERSION }}", "--verbose")
           if ("${{ github.event.inputs.force_download }}" -eq "true") {
-            $force_flag = "--force"
+            $args += "--force"
           }
 
-          python scripts/prepare_npcap.py --version "${{ env.NPCAP_VERSION }}" $force_flag --verbose
+          python @args
 
           if (Test-Path "npcap/npcap-installer.exe") {
             echo "success=true" >> $env:GITHUB_OUTPUT
