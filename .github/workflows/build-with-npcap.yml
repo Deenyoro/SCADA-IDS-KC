@@ -23,11 +23,6 @@ on:
 concurrency:
   group: build-with-npcap-${{ github.ref }}
   cancel-in-progress: true
-      create_release:
-        description: "Create GitHub release"
-        required: false
-        default: false
-        type: boolean
 
 env:
   PYTHON_VERSION: "3.11"
@@ -67,8 +62,8 @@ jobs:
 
       - name: Prepare Npcap installer
         id: prepare
-        timeout-minutes: 15  # Extended timeout for better reliability
-        continue-on-error: true  # Allow fallback to handle failures
+        timeout-minutes: 15 # Extended timeout for better reliability
+        continue-on-error: true # Allow fallback to handle failures
         run: |
           echo "=== PREPARING NPCAP INSTALLER ==="
           echo "Version: ${{ env.NPCAP_VERSION }}"
@@ -218,11 +213,11 @@ jobs:
         run: |
           echo "Running basic system tests..."
 
-          # Test Npcap manager
-          python -c "import sys; sys.path.insert(0, 'src'); from scada_ids.npcap_manager import get_npcap_manager; manager = get_npcap_manager(); print(f'Npcap system status: {manager.get_system_status()}')" || echo "Npcap manager test failed"
+          echo "Testing Npcap manager..."
+          python -c "import sys; sys.path.insert(0, 'src'); from scada_ids.npcap_manager import get_npcap_manager; manager = get_npcap_manager(); print('Npcap system status:', manager.get_system_status())" || echo "Npcap manager test failed"
 
-          # Test controller
-          python -c "import sys; sys.path.insert(0, 'src'); from scada_ids.controller import IDSController; controller = IDSController(); interfaces = controller.get_available_interfaces(); print(f'Available interfaces: {len(interfaces)}')" || echo "Controller test failed"
+          echo "Testing controller..."
+          python -c "import sys; sys.path.insert(0, 'src'); from scada_ids.controller import IDSController; controller = IDSController(); interfaces = controller.get_available_interfaces(); print('Available interfaces:', len(interfaces))" || echo "Controller test failed"
 
       - name: Build with PyInstaller
         run: |
