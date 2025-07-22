@@ -2,9 +2,9 @@
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -13,7 +13,7 @@ env:
 jobs:
   build-without-npcap:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -27,20 +27,32 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pyinstaller
 
       - name: Build standalone executable
         run: |
           echo "Building standalone executable..."
           cd packaging
-          python build_executable.py
+          pyinstaller --clean SCADA-IDS-KC-main.spec
 
       - name: Create release package
         run: |
           echo "Creating release package..."
-          cd packaging
-          New-Item -ItemType Directory -Path "../release" -Force
-          Copy-Item "dist/*" "../release/" -Recurse -Force
-          echo "SCADA-IDS-KC Standalone - Built $(Get-Date)" > "../release/BUILD_INFO.txt"
+          New-Item -ItemType Directory -Path "release" -Force
+          Copy-Item "packaging/dist/*" "release/" -Recurse -Force
+          echo "SCADA-IDS-KC Standalone - Built $(Get-Date)" > "release/BUILD_INFO.txt"
+
+      - name: Verify build output
+        run: |
+          echo "Verifying build output..."
+          if (Test-Path "release/SCADA-IDS-KC.exe") {
+            $exe = Get-Item "release/SCADA-IDS-KC.exe"
+            echo "✅ Executable built successfully: $($exe.Length) bytes"
+          } else {
+            echo "❌ Executable not found!"
+            Get-ChildItem release -ErrorAction SilentlyContinue
+            exit 1
+          }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

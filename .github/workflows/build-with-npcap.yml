@@ -2,9 +2,9 @@
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -14,7 +14,7 @@ env:
 jobs:
   build-with-npcap:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,26 +28,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install requests
-
-      - name: Prepare Npcap installer
-        run: |
-          echo "Preparing Npcap installer..."
-          python scripts/prepare_npcap.py --version ${{ env.NPCAP_VERSION }} --verbose
+          pip install pyinstaller requests
 
       - name: Build executable with bundled Npcap
         run: |
           echo "Building executable with bundled Npcap..."
-          cd packaging
-          python build_executable.py --bundle-npcap
+          python scripts/build_with_npcap.py --npcap-version ${{ env.NPCAP_VERSION }}
 
-      - name: Create release package
+      - name: Verify build output
         run: |
-          echo "Creating release package..."
-          cd packaging
-          New-Item -ItemType Directory -Path "../release" -Force
-          Copy-Item "dist/*" "../release/" -Recurse -Force
-          echo "SCADA-IDS-KC with Bundled Npcap - Built $(Get-Date)" > "../release/BUILD_INFO.txt"
+          echo "Verifying build output..."
+          if (Test-Path "release/SCADA-IDS-KC.exe") {
+            $exe = Get-Item "release/SCADA-IDS-KC.exe"
+            echo "✅ Executable built successfully: $($exe.Length) bytes"
+          } else {
+            echo "❌ Executable not found!"
+            Get-ChildItem release -ErrorAction SilentlyContinue
+            exit 1
+          }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
