@@ -17,26 +17,36 @@
 - **Cross-platform GUI** built with PyQt6
 - **System notifications** with native Windows/Linux support
 - **Configurable settings** using Pydantic with YAML configuration
-- **Single executable** packaging with PyInstaller
-- **Offline installation** support with pre-downloaded dependencies
+- **Dual build system** with bundled and standalone variants
+- **Zero-configuration deployment** with embedded Npcap installer
+- **Automated CI/CD** with GitHub Actions for both build variants
 
 ## Quick Start
 
-### Windows
+### Windows - Bundled Npcap (Recommended)
 ```powershell
-.\build_windows.ps1
+# Build with embedded Npcap installer (zero-config deployment)
+.\scripts\build-with-npcap.ps1
+```
+
+### Windows - Standalone
+```powershell
+# Build standalone (requires system Npcap installation)
+.\scripts\build-without-npcap.ps1
 ```
 
 ### Linux
 ```bash
-./build_linux.sh
+./scripts/build_linux.sh
 ```
 
 ## Requirements
 
-- Python 3.12.2
+- Python 3.11+ (3.11 or 3.12 recommended)
 - Administrator/root privileges for packet capture
 - Network interface with promiscuous mode support
+- Windows: Npcap (auto-installed with bundled variant)
+- Linux: libpcap-dev
 
 ## Architecture
 

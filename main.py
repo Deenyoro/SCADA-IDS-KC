@@ -112,18 +112,33 @@ def check_system_requirements():
             if npcap_status.get("bundled_available"):
                 warnings.append("Bundled Npcap installer available - will auto-install if needed")
 
-            # Check if Npcap is working
+            # Check if Npcap is working, and if not, try to ensure it's available
             if not (npcap_status.get("installed") and
                    npcap_status.get("service_running") and
                    npcap_status.get("winpcap_compatible")):
 
-                # Try to use fallback installations
-                if npcap_status.get("fallback_detected"):
-                    warnings.append("Using fallback Npcap installation (Wireshark/existing)")
-                elif npcap_status.get("bundled_available"):
-                    warnings.append("Npcap will be automatically installed when needed")
-                else:
-                    issues.append("Npcap not available and no bundled installer found")
+                # Try to ensure Npcap is available using the new prioritized logic
+                try:
+                    npcap_available = npcap_manager.ensure_npcap_available(auto_install=True)
+                    if npcap_available:
+                        warnings.append("Npcap configured successfully with bundled installer")
+                    else:
+                        # Try to use fallback installations
+                        if npcap_status.get("fallback_detected"):
+                            warnings.append("Using fallback Npcap installation (Wireshark/existing)")
+                        elif npcap_status.get("bundled_available"):
+                            warnings.append("Npcap will be automatically installed when needed")
+                        else:
+                            issues.append("Npcap not available and no bundled installer found")
+                except Exception as e:
+                    warnings.append(f"Npcap auto-installation failed: {e}")
+                    # Try to use fallback installations
+                    if npcap_status.get("fallback_detected"):
+                        warnings.append("Using fallback Npcap installation (Wireshark/existing)")
+                    elif npcap_status.get("bundled_available"):
+                        warnings.append("Npcap will be automatically installed when needed")
+                    else:
+                        issues.append("Npcap not available and no bundled installer found")
 
         except ImportError:
             issues.append("Scapy not available for packet capture")
@@ -275,6 +290,9 @@ def run_cli_mode(args):
 
         if args.install_npcap:
             return install_npcap_force()
+
+        if args.fix_npcap:
+            return fix_npcap_compatibility()
 
         if args.monitor:
             return run_monitoring_cli(controller, args)
@@ -701,6 +719,47 @@ def install_npcap_force():
 
     except Exception as e:
         print(f"ERROR: Npcap installation failed: {e}")
+        return 1
+
+
+def fix_npcap_compatibility():
+    """Fix WinPcap compatibility in existing Npcap installation."""
+    try:
+        print("=== FIX NPCAP WINPCAP COMPATIBILITY ===")
+
+        if sys.platform != "win32":
+            print("Npcap compatibility fix is only available on Windows.")
+            return 0
+
+        from src.scada_ids.npcap_manager import get_npcap_manager
+
+        # Get Npcap manager
+        npcap_manager = get_npcap_manager()
+
+        # Check admin privileges
+        if not npcap_manager._is_admin():
+            print("ERROR: Administrator privileges required for Npcap registry modifications.")
+            print("Please run this command as Administrator.")
+            return 1
+
+        print("Attempting to fix WinPcap compatibility via registry modification...")
+
+        # Try registry fix
+        success = npcap_manager.fix_winpcap_compatibility()
+
+        if success:
+            print("SUCCESS: WinPcap compatibility has been enabled!")
+            print("Npcap should now work with packet capture functionality.")
+            print("You may need to restart the Npcap service or reboot for changes to take effect.")
+            return 0
+        else:
+            print("ERROR: Failed to fix WinPcap compatibility.")
+            print("You may need to reinstall Npcap manually with WinPcap compatibility enabled.")
+            print("Download from: https://npcap.com/")
+            return 1
+
+    except Exception as e:
+        print(f"ERROR: Npcap compatibility fix failed: {e}")
         return 1
 
 
@@ -1161,6 +1220,8 @@ Examples:
                        help='Run comprehensive Npcap system diagnostics (Windows only)')
     parser.add_argument('--install-npcap', action='store_true',
                        help='Force installation of bundled Npcap (Windows only)')
+    parser.add_argument('--fix-npcap', action='store_true',
+                       help='Fix WinPcap compatibility in existing Npcap installation (Windows only)')
     parser.add_argument('--use-system-npcap', action='store_true',
                        help='Use system-installed Npcap (Wireshark/manual) instead of bundled installer. ' +
                             'By default, SCADA-IDS-KC prioritizes its bundled Npcap installer for optimal compatibility.')

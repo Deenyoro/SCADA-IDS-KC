@@ -88,9 +88,24 @@ build/
 dist/
 *.spec.bak
 
-# Npcap cache
+# Npcap cache and temporary files
 npcap/*.exe
 npcap/*.backup
+npcap.temp/
+
+# Temporary test and capture files
+*.json
+!config/*.json
+!release/version.json
+!models/*.json
+!npcap/fallback_info.json
+*.log
+!logs/.gitkeep
+interface_debug_test.log
+test_interface_debugging.py
+
+# Query temporary files
+query/
 
 # Additional Python exclusions
 htmlcov/

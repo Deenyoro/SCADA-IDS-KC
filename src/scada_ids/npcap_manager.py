@@ -192,6 +192,16 @@ class NpcapManager:
             )
 
             if needs_bundled_install:
+                # If only WinPcap compatibility is missing, try registry fix first
+                if (status["installed"] and status["service_running"] and
+                    not status["winpcap_compatible"]):
+                    logger.info("PRIORITY 1A: Trying registry fix for WinPcap compatibility...")
+                    if self.fix_winpcap_compatibility():
+                        logger.info("SUCCESS: WinPcap compatibility enabled via registry")
+                        return True
+                    else:
+                        logger.info("Registry fix failed, proceeding with full installation...")
+
                 logger.info("Installing bundled Npcap with WinPcap compatibility...")
                 if self.install_npcap():
                     logger.info("SUCCESS: Bundled Npcap installation completed")
@@ -406,14 +416,52 @@ class NpcapManager:
         
         try:
             logger.info(f"Running Npcap installer: {' '.join(cmd)}")
-            
-            # Run installer
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
-            )
+
+            # Run installer with proper elevation handling
+            if sys.platform == "win32":
+                # Try direct execution first (if already elevated)
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=300  # 5 minute timeout
+                    )
+
+                    # If we get permission error, try with PowerShell elevation
+                    if result.returncode != 0 and "elevation" in result.stderr.lower():
+                        logger.info("Direct execution failed, trying PowerShell elevation...")
+
+                        # Use PowerShell Start-Process with -Verb RunAs
+                        ps_args = "'" + "','".join(install_params) + "'"
+                        ps_cmd = [
+                            "powershell", "-Command",
+                            f"Start-Process -FilePath '{installer_path}' -ArgumentList {ps_args} -Verb RunAs -Wait -PassThru | Select-Object ExitCode"
+                        ]
+
+                        result = subprocess.run(
+                            ps_cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=300
+                        )
+
+                except subprocess.TimeoutExpired:
+                    logger.error("Installer timed out after 5 minutes")
+                    return False
+                except Exception as e:
+                    if "elevation" in str(e).lower() or "740" in str(e):
+                        logger.error("Installation requires elevation - please run as Administrator")
+                        return False
+                    raise
+            else:
+                # Non-Windows fallback
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
             
             logger.info(f"Installer exit code: {result.returncode}")
             
@@ -463,7 +511,54 @@ class NpcapManager:
         # Try reinstallation
         logger.info("Service restart failed, attempting reinstallation...")
         return self.install_npcap()
-    
+
+    def fix_winpcap_compatibility(self) -> bool:
+        """
+        Fix WinPcap compatibility by directly modifying the registry.
+        This is a simpler alternative to full reinstallation.
+
+        Returns:
+            True if successfully enabled WinPcap compatibility
+        """
+        if not self.is_windows:
+            logger.info("WinPcap compatibility fix only needed on Windows")
+            return True
+
+        try:
+            logger.info("Attempting to enable WinPcap compatibility via registry...")
+
+            # Check if we have admin privileges
+            if not self._is_admin():
+                logger.error("Administrator privileges required to modify Npcap registry settings")
+                return False
+
+            # Open the Npcap parameters registry key
+            key_path = r"SYSTEM\CurrentControlSet\Services\npcap\Parameters"
+
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_SET_VALUE) as key:
+                # Set WinPcapCompatible to 1 (enabled)
+                winreg.SetValueEx(key, "WinPcapCompatible", 0, winreg.REG_DWORD, 1)
+                logger.info("Successfully enabled WinPcap compatibility in registry")
+
+                # Also disable admin-only mode for better compatibility
+                try:
+                    winreg.SetValueEx(key, "AdminOnly", 0, winreg.REG_DWORD, 0)
+                    logger.info("Successfully disabled admin-only mode")
+                except Exception as e:
+                    logger.debug(f"Could not modify AdminOnly setting: {e}")
+
+                return True
+
+        except FileNotFoundError:
+            logger.error("Npcap registry key not found - Npcap may not be installed")
+            return False
+        except PermissionError:
+            logger.error("Permission denied - Administrator privileges required")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to modify Npcap registry settings: {e}")
+            return False
+
     def _check_npcap_installation(self) -> Dict[str, Any]:
         """Check if Npcap is properly installed."""
         result = {
