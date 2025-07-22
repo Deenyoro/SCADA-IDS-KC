@@ -18,6 +18,11 @@ on:
         required: false
         default: false
         type: boolean
+
+# Prevent multiple instances of this workflow from running simultaneously
+concurrency:
+  group: build-with-npcap-${{ github.ref }}
+  cancel-in-progress: true
       create_release:
         description: "Create GitHub release"
         required: false
