@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('config', 'config'), ('src', 'src'), ('models', 'models')]
+datas = [('../config', 'config'), ('../src', 'src'), ('../models', 'models')]
 binaries = []
 hiddenimports = ['scada_ids', 'scada_ids.settings', 'scada_ids.controller', 'scada_ids.capture', 'scada_ids.features', 'scada_ids.ml', 'scada_ids.notifier', 'scada_ids.packet_logger', 'scada_ids.sikc_config', 'ui', 'ui.main_window', 'numpy._core', 'numpy._core._multiarray_umath', 'numpy._core._multiarray_tests']
 tmp_ret = collect_all('sklearn')
@@ -13,8 +13,8 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
-    ['main.py'],
-    pathex=['src'],
+    ['../main.py'],
+    pathex=['../src'],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

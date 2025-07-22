@@ -12,6 +12,20 @@ import logging.config
 import json
 from pathlib import Path
 
+# Fix console encoding issues on Windows
+if sys.platform == "win32":
+    try:
+        # Try to set console to UTF-8 mode
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    except Exception:
+        # Fallback: just ensure we have some encoding
+        if not hasattr(sys.stdout, 'encoding') or sys.stdout.encoding is None:
+            sys.stdout.encoding = 'utf-8'
+        if not hasattr(sys.stderr, 'encoding') or sys.stderr.encoding is None:
+            sys.stderr.encoding = 'utf-8'
+
 # Add src directory to Python path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root / 'src'))
@@ -75,18 +89,52 @@ def check_system_requirements():
     if sys.version_info < (3, 8):
         issues.append(f"Python 3.8+ required, found {sys.version}")
     
-    # Check packet capture capabilities on Windows
+    # Comprehensive Npcap check on Windows
     if sys.platform == "win32":
         try:
-            import scapy.all as scapy
-            # Try to detect if npcap/winpcap is available
-            try:
-                scapy.get_if_list()  # This will trigger libpcap warnings if missing
-            except Exception:
-                warnings.append("Npcap/WinPcap not detected. Install Npcap for packet capture functionality.")
-                warnings.append("Download from: https://nmap.org/npcap/")
+            from src.scada_ids.npcap_checker import check_npcap_system
+
+            # Run comprehensive Npcap diagnostics
+            npcap_status = check_npcap_system()
+
+            # Check for critical Npcap issues
+            if npcap_status.get("critical_issues"):
+                for issue in npcap_status["critical_issues"]:
+                    issues.append(f"Npcap: {issue}")
+
+            # Check for warnings
+            if npcap_status.get("warnings"):
+                for warning in npcap_status["warnings"]:
+                    warnings.append(f"Npcap: {warning}")
+
+            # Check service status
+            service_status = npcap_status.get("service_status", {})
+            if not service_status.get("service_running", False):
+                issues.append("Npcap service is not running - packet capture will fail")
+
+            # Check admin privileges if admin-only mode
+            registry_config = npcap_status.get("registry_config", {})
+            admin_status = npcap_status.get("admin_privileges", {})
+
+            if registry_config.get("admin_only", False) and not admin_status.get("is_admin", False):
+                issues.append("Administrator privileges required (Npcap is in admin-only mode)")
+
+            # Basic interface enumeration test
+            interface_test = npcap_status.get("interface_enumeration", {})
+            if interface_test.get("interfaces_found", 0) == 0:
+                issues.append("No network interfaces found (Npcap driver issue)")
+
         except ImportError:
             issues.append("Scapy not available for packet capture")
+        except Exception as e:
+            warnings.append(f"Npcap system check failed: {e}")
+            # Fallback to basic check
+            try:
+                import scapy.all as scapy
+                scapy.get_if_list()
+            except Exception:
+                warnings.append("Npcap/WinPcap not detected. Install Npcap for packet capture functionality.")
+                warnings.append("Download from: https://npcap.com/")
     
     # Check required modules
     required_modules = [
@@ -220,7 +268,10 @@ def run_cli_mode(args):
         
         if args.test_notifications:
             return test_notifications()
-        
+
+        if args.diagnose_npcap:
+            return diagnose_npcap_system()
+
         if args.monitor:
             return run_monitoring_cli(controller, args)
         
@@ -489,6 +540,98 @@ def test_notifications():
             
     except Exception as e:
         print(f"ERROR: Notification test failed: {e}")
+        return 1
+
+
+def diagnose_npcap_system():
+    """Run comprehensive Npcap system diagnostics."""
+    try:
+        print("=== NPCAP SYSTEM DIAGNOSTICS ===")
+
+        if sys.platform != "win32":
+            print("Npcap diagnostics are only available on Windows.")
+            return 0
+
+        from src.scada_ids.npcap_checker import check_npcap_system, get_npcap_fix_instructions
+
+        # Run comprehensive diagnostics
+        print("Running comprehensive Npcap system check...")
+        results = check_npcap_system()
+
+        # Display results
+        print(f"\nPlatform: {results.get('platform', 'unknown')}")
+
+        # Service status
+        service_status = results.get('service_status', {})
+        print(f"\nNPCAP SERVICE:")
+        print(f"  Service exists: {service_status.get('service_exists', False)}")
+        print(f"  Service running: {service_status.get('service_running', False)}")
+        print(f"  Service state: {service_status.get('service_state', 'unknown')}")
+        print(f"  Start type: {service_status.get('start_type', 'unknown')}")
+
+        # Driver status
+        driver_status = results.get('driver_version', {})
+        print(f"\nNPCAP DRIVER:")
+        print(f"  Driver file exists: {driver_status.get('driver_file_exists', False)}")
+        print(f"  Driver path: {driver_status.get('file_path', 'not found')}")
+        if driver_status.get('file_size'):
+            print(f"  Driver size: {driver_status['file_size']} bytes")
+
+        # Registry configuration
+        registry_config = results.get('registry_config', {})
+        print(f"\nREGISTRY CONFIGURATION:")
+        print(f"  Registry accessible: {registry_config.get('registry_accessible', False)}")
+        print(f"  Admin only mode: {registry_config.get('admin_only', 'unknown')}")
+        print(f"  WinPcap compatible: {registry_config.get('winpcap_compatible', 'unknown')}")
+        print(f"  Loopback support: {registry_config.get('loopback_support', 'unknown')}")
+
+        # Admin privileges
+        admin_status = results.get('admin_privileges', {})
+        print(f"\nADMIN PRIVILEGES:")
+        print(f"  Running as admin: {admin_status.get('is_admin', False)}")
+
+        # Interface enumeration
+        interface_test = results.get('interface_enumeration', {})
+        print(f"\nINTERFACE ENUMERATION:")
+        print(f"  Scapy available: {interface_test.get('scapy_available', False)}")
+        print(f"  Interfaces found: {interface_test.get('interfaces_found', 0)}")
+        if interface_test.get('interface_list'):
+            print(f"  Sample interfaces: {interface_test['interface_list']}")
+
+        # WinPcap conflicts
+        winpcap_conflicts = results.get('winpcap_conflicts', {})
+        print(f"\nWINPCAP CONFLICTS:")
+        print(f"  Conflicts found: {winpcap_conflicts.get('conflicts_found', False)}")
+        if winpcap_conflicts.get('conflicting_files'):
+            print(f"  Conflicting files: {winpcap_conflicts['conflicting_files']}")
+
+        # Issues and recommendations
+        if results.get('critical_issues'):
+            print(f"\nCRITICAL ISSUES:")
+            for issue in results['critical_issues']:
+                print(f"  - {issue}")
+
+        if results.get('warnings'):
+            print(f"\nWARNINGS:")
+            for warning in results['warnings']:
+                print(f"  - {warning}")
+
+        if results.get('recommendations'):
+            print(f"\nRECOMMENDATIONS:")
+            for rec in results['recommendations']:
+                print(f"  - {rec}")
+
+        # Generate fix instructions
+        print(f"\n{get_npcap_fix_instructions()}")
+
+        # Return appropriate exit code
+        if results.get('critical_issues'):
+            return 1  # Critical issues found
+        else:
+            return 0  # All good or only warnings
+
+    except Exception as e:
+        print(f"ERROR: Npcap diagnostics failed: {e}")
         return 1
 
 
@@ -938,6 +1081,8 @@ Examples:
                        help='Test ML model loading and prediction (CLI mode)')
     parser.add_argument('--test-notifications', action='store_true',
                        help='Test notification system (CLI mode)')
+    parser.add_argument('--diagnose-npcap', action='store_true',
+                       help='Run comprehensive Npcap system diagnostics (Windows only)')
     parser.add_argument('--model-info', action='store_true',
                        help='Show detailed ML model information (CLI mode)')
     parser.add_argument('--reload-models', action='store_true',
