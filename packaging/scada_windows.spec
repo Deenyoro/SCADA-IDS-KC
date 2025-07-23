@@ -174,6 +174,8 @@ hidden_imports_list = [
     'scada_ids.interface_detector',
     'scada_ids.error_recovery',
     'scada_ids.startup',
+    'scada_ids.crash_handler',
+    'scada_ids.windows10_compat',
 
     # UI modules
     'ui',
@@ -296,6 +298,10 @@ hidden_imports_list = [
     'importlib',
     'importlib.util',
     'pkg_resources',
+    'platform',
+    'winreg',
+    'ctypes',
+    'ctypes.wintypes',
 ]
 
 # Add Windows-specific modules if available (for Wine builds)

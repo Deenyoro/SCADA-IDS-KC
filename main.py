@@ -30,6 +30,14 @@ if sys.platform == "win32":
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root / 'src'))
 
+# Install crash handler as early as possible (before any other imports)
+try:
+    from scada_ids.crash_handler import install_crash_handler
+    install_crash_handler()
+except ImportError:
+    # Crash handler not available, continue without it
+    pass
+
 # Import our modules with better error handling
 try:
     from scada_ids.settings import get_settings, reload_settings

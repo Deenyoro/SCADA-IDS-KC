@@ -9,6 +9,18 @@ import time
 from pathlib import Path
 from typing import Optional, Tuple, List
 
+# Install crash handler as early as possible
+try:
+    from .crash_handler import install_crash_handler
+    install_crash_handler()
+except ImportError:
+    pass
+
+try:
+    from .windows10_compat import get_windows10_compatibility
+except ImportError:
+    get_windows10_compatibility = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,6 +54,15 @@ class StartupManager:
         # Step 4: Windows-specific initialization
         if self.is_windows:
             self._initialize_windows()
+            
+            # Step 4a: Windows 10 specific compatibility fixes
+            if get_windows10_compatibility:
+                try:
+                    win10_compat = get_windows10_compatibility()
+                    win10_compat.apply_compatibility_fixes()
+                    logger.info("Windows 10 compatibility fixes applied")
+                except Exception as e:
+                    self.startup_warnings.append(f"Windows 10 compatibility fixes failed: {e}")
         
         # Step 5: Check critical dependencies
         if not self._check_dependencies():
