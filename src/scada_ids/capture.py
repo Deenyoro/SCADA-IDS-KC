@@ -37,6 +37,10 @@ except ImportError:
     SCAPY_AVAILABLE = False
 
 from .settings import get_settings
+try:
+    from .interface_detector import get_interface_detector
+except ImportError:
+    get_interface_detector = None
 
 
 logger = logging.getLogger(__name__)
@@ -93,6 +97,36 @@ class PacketSniffer:
             logger.error("Scapy not available, cannot get interfaces")
             logger.debug("=== INTERFACE DETECTION END (SCAPY UNAVAILABLE) ===")
             return []
+        
+        interfaces = []
+        
+        # Try enhanced interface detection first on Windows
+        if get_interface_detector and sys.platform == "win32":
+            try:
+                detector = get_interface_detector()
+                detected_interfaces = detector.get_all_interfaces()
+                
+                if detected_interfaces:
+                    logger.info(f"Enhanced detection found {len(detected_interfaces)} interfaces")
+                    # Convert to list of interface identifiers
+                    for iface in detected_interfaces:
+                        # Prefer GUID for Windows
+                        if iface.get('guid'):
+                            interfaces.append(iface['guid'])
+                        elif iface.get('name'):
+                            interfaces.append(iface['name'])
+                    
+                    # Also suggest best interface
+                    suggested = detector.suggest_interface()
+                    if suggested:
+                        logger.info(f"Suggested interface: {suggested['name']} ({suggested.get('description', '')})")
+                    
+                    if interfaces:
+                        logger.debug(f"Enhanced detection returning {len(interfaces)} interfaces")
+                        return interfaces
+            except Exception as e:
+                logger.debug(f"Enhanced interface detection failed: {e}")
+                # Fall back to standard detection
 
         try:
             logger.debug("Calling scapy.get_if_list()...")

@@ -36,6 +36,7 @@ try:
     from scada_ids.controller import get_controller
     from scada_ids.ml import get_detector
     from scada_ids.notifier import get_notifier
+    from scada_ids.startup import get_startup_manager
 except ImportError as e:
     print("="*60)
     print("ERROR: Failed to import SCADA-IDS modules")
@@ -103,14 +104,166 @@ def setup_logging(log_level: str = "INFO", log_file: str = None):
     )
 
 
-def check_system_requirements():
-    """Check if system meets requirements for running SCADA-IDS-KC."""
-    issues = []
-    warnings = []
+def run_startup_diagnostics():
+    """Run comprehensive startup diagnostics and self-test."""
+    print("="*60)
+    print("SCADA-IDS-KC STARTUP DIAGNOSTICS")
+    print("="*60)
+    
+    diagnostics = {
+        'python_ok': False,
+        'modules_ok': False,
+        'npcap_ok': False,
+        'interfaces_ok': False,
+        'ml_ok': False,
+        'admin_ok': False,
+        'errors': [],
+        'warnings': []
+    }
     
     # Check Python version
-    if sys.version_info < (3, 8):
-        issues.append(f"Python 3.8+ required, found {sys.version}")
+    print(f"Python Version: {sys.version}")
+    if sys.version_info >= (3, 8):
+        print("✓ Python version OK")
+        diagnostics['python_ok'] = True
+    else:
+        print("✗ Python 3.8+ required")
+        diagnostics['errors'].append("Python version too old")
+    
+    # Check if running as admin on Windows
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+            if is_admin:
+                print("✓ Running as Administrator")
+                diagnostics['admin_ok'] = True
+            else:
+                print("⚠ Not running as Administrator (limited functionality)")
+                diagnostics['warnings'].append("Not running as Administrator")
+        except:
+            print("⚠ Could not check admin status")
+    
+    # Check critical modules
+    print("\nChecking critical modules...")
+    critical_modules = {
+        'scapy': 'Network packet capture',
+        'PyQt6': 'GUI framework',
+        'sklearn': 'Machine learning',
+        'numpy': 'Numerical computing',
+        'pandas': 'Data processing'
+    }
+    
+    all_modules_ok = True
+    for module, description in critical_modules.items():
+        try:
+            __import__(module)
+            print(f"✓ {module}: {description}")
+        except ImportError as e:
+            print(f"✗ {module}: {description} - {e}")
+            diagnostics['errors'].append(f"Missing module: {module}")
+            all_modules_ok = False
+    
+    diagnostics['modules_ok'] = all_modules_ok
+    
+    # Check Npcap on Windows
+    if sys.platform == "win32":
+        print("\nChecking Npcap status...")
+        try:
+            from scada_ids.npcap_manager import get_npcap_manager
+            npcap_mgr = get_npcap_manager()
+            status = npcap_mgr.get_system_status()
+            
+            if status.get('installed'):
+                print(f"✓ Npcap installed: v{status.get('version', 'unknown')}")
+                if status.get('service_running'):
+                    print("✓ Npcap service running")
+                    if status.get('winpcap_compatible'):
+                        print("✓ WinPcap compatibility enabled")
+                        diagnostics['npcap_ok'] = True
+                    else:
+                        print("✗ WinPcap compatibility disabled")
+                        diagnostics['warnings'].append("Npcap missing WinPcap compatibility")
+                else:
+                    print("✗ Npcap service not running")
+                    diagnostics['errors'].append("Npcap service not running")
+            else:
+                print("✗ Npcap not installed")
+                diagnostics['errors'].append("Npcap not installed")
+                if status.get('bundled_available'):
+                    print("  → Bundled installer available for auto-installation")
+                    diagnostics['warnings'].append("Npcap can be auto-installed")
+        except Exception as e:
+            print(f"✗ Error checking Npcap: {e}")
+            diagnostics['errors'].append(f"Npcap check failed: {e}")
+    
+    # Check network interfaces
+    print("\nChecking network interfaces...")
+    try:
+        import scapy.all as scapy
+        interfaces = scapy.get_if_list()
+        if interfaces:
+            print(f"✓ Found {len(interfaces)} network interfaces")
+            diagnostics['interfaces_ok'] = True
+            for i, iface in enumerate(interfaces[:5]):  # Show first 5
+                print(f"  {i+1}. {iface}")
+            if len(interfaces) > 5:
+                print(f"  ... and {len(interfaces)-5} more")
+        else:
+            print("✗ No network interfaces found")
+            diagnostics['errors'].append("No network interfaces detected")
+    except Exception as e:
+        print(f"✗ Error listing interfaces: {e}")
+        diagnostics['errors'].append(f"Interface detection failed: {e}")
+    
+    # Check ML models
+    print("\nChecking ML models...")
+    try:
+        from scada_ids.ml import get_detector
+        detector = get_detector()
+        load_status = detector.get_load_status()
+        
+        if load_status.get('can_predict'):
+            print("✓ ML models loaded and ready")
+            diagnostics['ml_ok'] = True
+        else:
+            print("⚠ ML models not fully loaded")
+            if load_status.get('errors'):
+                for error in load_status['errors']:
+                    print(f"  - {error}")
+                    diagnostics['warnings'].append(f"ML: {error}")
+    except Exception as e:
+        print(f"✗ Error checking ML models: {e}")
+        diagnostics['errors'].append(f"ML check failed: {e}")
+    
+    # Summary
+    print("\n" + "="*60)
+    print("DIAGNOSTIC SUMMARY")
+    print("="*60)
+    
+    if not diagnostics['errors']:
+        print("✓ All critical checks passed!")
+        print("  The application should work correctly.")
+    else:
+        print("✗ Critical issues found:")
+        for error in diagnostics['errors']:
+            print(f"  - {error}")
+    
+    if diagnostics['warnings']:
+        print("\n⚠ Warnings:")
+        for warning in diagnostics['warnings']:
+            print(f"  - {warning}")
+    
+    print("="*60)
+    
+    return diagnostics
+
+
+def check_system_requirements():
+    """Check if system meets requirements for running SCADA-IDS-KC."""
+    # Run diagnostics and convert to old format for compatibility
+    diag = run_startup_diagnostics()
+    return diag['errors'], diag['warnings']
     
     # Comprehensive Npcap check and auto-installation on Windows
     if sys.platform == "win32":
@@ -307,6 +460,11 @@ def run_cli_mode(args):
         
         if args.test_notifications:
             return test_notifications()
+        
+        if args.diagnose:
+            # Run comprehensive diagnostics
+            diag = run_startup_diagnostics()
+            return 0 if not diag['errors'] else 1
 
         if args.diagnose_npcap:
             return diagnose_npcap_system()
@@ -1239,6 +1397,8 @@ Examples:
                        help='Test ML model loading and prediction (CLI mode)')
     parser.add_argument('--test-notifications', action='store_true',
                        help='Test notification system (CLI mode)')
+    parser.add_argument('--diagnose', '--diagnostics', action='store_true',
+                       help='Run comprehensive startup diagnostics')
     parser.add_argument('--diagnose-npcap', action='store_true',
                        help='Run comprehensive Npcap system diagnostics (Windows only)')
     parser.add_argument('--install-npcap', action='store_true',
@@ -1348,6 +1508,28 @@ Examples:
             logger.info(f"Packet logging enabled: {packet_config}")
         
         logger.info("SCADA-IDS-KC starting...")
+        
+        # Initialize application with comprehensive startup checks
+        startup_mgr = get_startup_manager()
+        init_success, init_errors, init_warnings = startup_mgr.initialize_application()
+        
+        # Show initialization results
+        if init_warnings:
+            print("Initialization warnings:")
+            for warning in init_warnings:
+                print(f"  WARNING: {warning}")
+            print()
+        
+        if not init_success:
+            print("Application initialization failed:")
+            for error in init_errors:
+                print(f"  ERROR: {error}")
+            return 1
+        
+        # Wait for system to be ready
+        if not startup_mgr.wait_for_system_ready(timeout=30):
+            print("ERROR: System failed to become ready")
+            return 1
         
         # Check system requirements (basic check for CLI)
         issues, warnings = check_system_requirements()

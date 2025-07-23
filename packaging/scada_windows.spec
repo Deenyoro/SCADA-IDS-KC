@@ -171,6 +171,9 @@ hidden_imports_list = [
     'scada_ids.npcap_manager',
     'scada_ids.npcap_checker',
     'scada_ids.system_checker',
+    'scada_ids.interface_detector',
+    'scada_ids.error_recovery',
+    'scada_ids.startup',
 
     # UI modules
     'ui',

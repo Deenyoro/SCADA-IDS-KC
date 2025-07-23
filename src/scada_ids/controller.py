@@ -19,6 +19,10 @@ from .ml import get_detector
 from .notifier import get_notifier
 from .settings import get_settings
 from .packet_logger import PacketLogger
+try:
+    from .error_recovery import get_error_recovery
+except ImportError:
+    get_error_recovery = None
 
 
 logger = logging.getLogger(__name__)
@@ -112,10 +116,29 @@ class IDSController:
                 # Reset statistics and state
                 self._reset_state()
                 
-                # Start packet capture
+                # Start packet capture with error recovery
                 if not self.packet_sniffer.start_capture():
                     logger.error("Failed to start packet capture")
-                    return False
+                    
+                    # Attempt error recovery
+                    if get_error_recovery:
+                        logger.info("Attempting automatic error recovery...")
+                        recovery = get_error_recovery()
+                        
+                        # Try packet capture recovery
+                        if recovery.attempt_recovery('packet_capture_failed', {'interface': interface}):
+                            logger.info("Error recovery successful, retrying packet capture...")
+                            # Retry after recovery
+                            if self.packet_sniffer.start_capture():
+                                logger.info("Packet capture started successfully after recovery")
+                            else:
+                                logger.error("Packet capture still failing after recovery")
+                                return False
+                        else:
+                            logger.error("Error recovery failed")
+                            return False
+                    else:
+                        return False
                 
                 # Start processing thread
                 self.is_running = True
