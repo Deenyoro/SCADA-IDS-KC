@@ -37,6 +37,10 @@ except ImportError:
     SCAPY_AVAILABLE = False
 
 from .settings import get_settings
+try:
+    from .interface_detector import get_interface_detector
+except ImportError:
+    get_interface_detector = None
 
 
 logger = logging.getLogger(__name__)
@@ -93,6 +97,36 @@ class PacketSniffer:
             logger.error("Scapy not available, cannot get interfaces")
             logger.debug("=== INTERFACE DETECTION END (SCAPY UNAVAILABLE) ===")
             return []
+        
+        interfaces = []
+        
+        # Try enhanced interface detection first on Windows
+        if get_interface_detector and sys.platform == "win32":
+            try:
+                detector = get_interface_detector()
+                detected_interfaces = detector.get_all_interfaces()
+                
+                if detected_interfaces:
+                    logger.info(f"Enhanced detection found {len(detected_interfaces)} interfaces")
+                    # Convert to list of interface identifiers
+                    for iface in detected_interfaces:
+                        # Prefer GUID for Windows
+                        if iface.get('guid'):
+                            interfaces.append(iface['guid'])
+                        elif iface.get('name'):
+                            interfaces.append(iface['name'])
+                    
+                    # Also suggest best interface
+                    suggested = detector.suggest_interface()
+                    if suggested:
+                        logger.info(f"Suggested interface: {suggested['name']} ({suggested.get('description', '')})")
+                    
+                    if interfaces:
+                        logger.debug(f"Enhanced detection returning {len(interfaces)} interfaces")
+                        return interfaces
+            except Exception as e:
+                logger.debug(f"Enhanced interface detection failed: {e}")
+                # Fall back to standard detection
 
         try:
             logger.debug("Calling scapy.get_if_list()...")
@@ -874,7 +908,45 @@ class PacketSniffer:
                     if any("123" in error or "filename, directory name" in error for error in variant_errors):
                         logger.error("=== ERROR 123 DETECTED ===")
                         logger.error("This is a Windows Npcap driver access issue.")
-                        logger.error("SOLUTIONS:")
+                        logger.error("AUTOMATIC FIX ATTEMPT:")
+                        
+                        # Try to auto-fix the issue
+                        try:
+                            if self.npcap_manager:
+                                logger.info("Attempting to ensure Npcap availability...")
+                                if self.npcap_manager.ensure_npcap_available(auto_install=True):
+                                    logger.info("Npcap configured successfully, retrying capture...")
+                                    # Give the service time to start
+                                    import time
+                                    time.sleep(3)
+                                    # Clear error state and retry
+                                    variant_errors.clear()
+                                    capture_successful = False
+                                    # Retry all variants with the newly configured Npcap
+                                    for retry_variant in interface_variants:
+                                        try:
+                                            logger.info(f"RETRY: Attempting capture on {retry_variant} after Npcap fix")
+                                            scapy.sniff(
+                                                iface=retry_variant,
+                                                filter=self.settings.network.bpf_filter,
+                                                prn=self._packet_handler,
+                                                store=False,
+                                                stop_filter=lambda x: not self.is_running,
+                                                timeout=self.settings.network.capture_timeout
+                                            )
+                                            logger.info(f"SUCCESS: Packet capture started after Npcap fix on {retry_variant}")
+                                            capture_successful = True
+                                            break
+                                        except Exception as retry_error:
+                                            logger.error(f"Retry failed for {retry_variant}: {retry_error}")
+                                            continue
+                                    
+                                    if capture_successful:
+                                        return  # Exit the function successfully
+                        except Exception as fix_error:
+                            logger.error(f"Auto-fix attempt failed: {fix_error}")
+                        
+                        logger.error("MANUAL SOLUTIONS:")
                         logger.error("  1. Run as Administrator")
                         logger.error("  2. Reinstall Npcap from https://npcap.com/")
                         logger.error("  3. Ensure 'Restrict to administrators' is OFF during install")

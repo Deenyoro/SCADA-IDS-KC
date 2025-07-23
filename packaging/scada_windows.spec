@@ -168,12 +168,21 @@ hidden_imports_list = [
     'scada_ids.features',
     'scada_ids.ml',
     'scada_ids.notifier',
+    'scada_ids.npcap_manager',
+    'scada_ids.npcap_checker',
+    'scada_ids.system_checker',
+    'scada_ids.interface_detector',
+    'scada_ids.error_recovery',
+    'scada_ids.startup',
+    'scada_ids.crash_handler',
+    'scada_ids.windows10_compat',
 
     # UI modules
     'ui',
     'ui.main_window',
     'ui.settings_dialog',
     'ui.about_dialog',
+    'ui.requirements_dialog',
 
     # Network and packet capture
     'scapy',
@@ -187,6 +196,9 @@ hidden_imports_list = [
     'scapy.fields',
     'scapy.config',
     'scapy.arch',
+    'scapy.arch.windows',
+    'scapy.arch.windows.native',
+    'scapy.arch.libpcap',
 
     # Machine Learning
     'sklearn',
@@ -286,6 +298,10 @@ hidden_imports_list = [
     'importlib',
     'importlib.util',
     'pkg_resources',
+    'platform',
+    'winreg',
+    'ctypes',
+    'ctypes.wintypes',
 ]
 
 # Add Windows-specific modules if available (for Wine builds)
@@ -356,13 +372,16 @@ excludes = [
 # Analysis step with cross-compilation optimizations
 a = Analysis(
     [str(project_root / "main.py")],
-    pathex=[str(src_path)],
+    pathex=[str(src_path), str(project_root)],
     binaries=binaries,
     datas=datas,
     hiddenimports=['pydoc'] + hidden_ml + hidden_plyer + hidden_imports_list,
     hookspath=[str(project_root / "packaging")],
     hooksconfig={},
-    runtime_hooks=[str(project_root / "packaging" / "pyi_rth_plyer.py")],
+    runtime_hooks=[
+        str(project_root / "packaging" / "pyi_rth_scada.py"),
+        str(project_root / "packaging" / "pyi_rth_plyer.py")
+    ] if (project_root / "packaging" / "pyi_rth_plyer.py").exists() else [str(project_root / "packaging" / "pyi_rth_scada.py")],
     excludes=excludes,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
