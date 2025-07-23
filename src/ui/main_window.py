@@ -968,7 +968,43 @@ class MainWindow(QMainWindow):
                 if hasattr(self, 'tray_icon'):
                     self.tray_icon.setToolTip(f"SCADA-IDS-KC - Monitoring {interface}")
             else:
-                QMessageBox.critical(self, "Error", "Failed to start monitoring. Check permissions and interface availability.")
+                # More detailed error message
+                error_msg = "Failed to start monitoring.\n\n"
+                
+                # Check for common Windows issues
+                if sys.platform == "win32":
+                    # Check if running as admin
+                    import ctypes
+                    is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+                    if not is_admin:
+                        error_msg += "❌ Not running as Administrator\n"
+                        error_msg += "   → Right-click the app and select 'Run as administrator'\n\n"
+                    
+                    # Check Npcap status
+                    try:
+                        from scada_ids.npcap_manager import get_npcap_manager
+                        npcap_mgr = get_npcap_manager()
+                        npcap_status = npcap_mgr.get_system_status()
+                        
+                        if not npcap_status.get("installed"):
+                            error_msg += "❌ Npcap not installed\n"
+                            error_msg += "   → Download from https://npcap.com/\n\n"
+                        elif not npcap_status.get("service_running"):
+                            error_msg += "❌ Npcap service not running\n"
+                            error_msg += "   → Restart your computer or start the service manually\n\n"
+                        elif not npcap_status.get("winpcap_compatible"):
+                            error_msg += "❌ Npcap missing WinPcap compatibility\n"
+                            error_msg += "   → Reinstall Npcap with 'WinPcap API compatibility' enabled\n\n"
+                    except Exception as e:
+                        error_msg += f"⚠️ Could not check Npcap status: {e}\n\n"
+                
+                error_msg += "Common solutions:\n"
+                error_msg += "1. Run as Administrator\n"
+                error_msg += "2. Install/reinstall Npcap from https://npcap.com/\n"
+                error_msg += "3. Enable WinPcap compatibility during Npcap install\n"
+                error_msg += "4. Restart your computer after Npcap installation"
+                
+                QMessageBox.critical(self, "Failed to Start Monitoring", error_msg)
                 
         except Exception as e:
             logger.error(f"Error starting monitoring: {e}")

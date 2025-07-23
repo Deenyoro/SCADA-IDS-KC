@@ -874,7 +874,45 @@ class PacketSniffer:
                     if any("123" in error or "filename, directory name" in error for error in variant_errors):
                         logger.error("=== ERROR 123 DETECTED ===")
                         logger.error("This is a Windows Npcap driver access issue.")
-                        logger.error("SOLUTIONS:")
+                        logger.error("AUTOMATIC FIX ATTEMPT:")
+                        
+                        # Try to auto-fix the issue
+                        try:
+                            if self.npcap_manager:
+                                logger.info("Attempting to ensure Npcap availability...")
+                                if self.npcap_manager.ensure_npcap_available(auto_install=True):
+                                    logger.info("Npcap configured successfully, retrying capture...")
+                                    # Give the service time to start
+                                    import time
+                                    time.sleep(3)
+                                    # Clear error state and retry
+                                    variant_errors.clear()
+                                    capture_successful = False
+                                    # Retry all variants with the newly configured Npcap
+                                    for retry_variant in interface_variants:
+                                        try:
+                                            logger.info(f"RETRY: Attempting capture on {retry_variant} after Npcap fix")
+                                            scapy.sniff(
+                                                iface=retry_variant,
+                                                filter=self.settings.network.bpf_filter,
+                                                prn=self._packet_handler,
+                                                store=False,
+                                                stop_filter=lambda x: not self.is_running,
+                                                timeout=self.settings.network.capture_timeout
+                                            )
+                                            logger.info(f"SUCCESS: Packet capture started after Npcap fix on {retry_variant}")
+                                            capture_successful = True
+                                            break
+                                        except Exception as retry_error:
+                                            logger.error(f"Retry failed for {retry_variant}: {retry_error}")
+                                            continue
+                                    
+                                    if capture_successful:
+                                        return  # Exit the function successfully
+                        except Exception as fix_error:
+                            logger.error(f"Auto-fix attempt failed: {fix_error}")
+                        
+                        logger.error("MANUAL SOLUTIONS:")
                         logger.error("  1. Run as Administrator")
                         logger.error("  2. Reinstall Npcap from https://npcap.com/")
                         logger.error("  3. Ensure 'Restrict to administrators' is OFF during install")

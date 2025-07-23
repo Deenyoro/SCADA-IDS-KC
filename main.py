@@ -30,15 +30,38 @@ if sys.platform == "win32":
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root / 'src'))
 
-# Import our modules
+# Import our modules with better error handling
 try:
     from scada_ids.settings import get_settings, reload_settings
     from scada_ids.controller import get_controller
     from scada_ids.ml import get_detector
     from scada_ids.notifier import get_notifier
 except ImportError as e:
-    print(f"Error importing SCADA-IDS modules: {e}")
-    print("Make sure you're running from the project root directory")
+    print("="*60)
+    print("ERROR: Failed to import SCADA-IDS modules")
+    print("="*60)
+    print(f"Import error: {e}")
+    print()
+    
+    # Check if running from compiled executable
+    if getattr(sys, 'frozen', False):
+        print("Running from compiled executable.")
+        print("This may be a packaging issue.")
+        print()
+        print("TROUBLESHOOTING STEPS:")
+        print("1. Ensure the executable was built correctly")
+        print("2. Try running as Administrator")
+        print("3. Check antivirus is not blocking the executable")
+        print("4. Report issue at: https://github.com/scada-ids/issues")
+    else:
+        print("Running from Python source.")
+        print("TROUBLESHOOTING STEPS:")
+        print("1. Install dependencies: pip install -r requirements.txt")
+        print("2. Make sure you're in the project root directory")
+        print("3. Check Python version (3.8+ required)")
+    
+    print("="*60)
+    input("Press Enter to exit...")
     sys.exit(1)
 
 
