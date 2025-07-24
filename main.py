@@ -533,6 +533,9 @@ def run_cli_mode(args):
         if args.config_restore:
             return handle_config_restore(args.config_restore)
         
+        if args.config_sources:
+            return handle_config_sources()
+        
         # Default: show help
         print("Use --help for usage information")
         return 0
@@ -1376,6 +1379,28 @@ def handle_config_restore(backup_name: str) -> int:
         return 1
 
 
+def handle_config_sources() -> int:
+    """Handle --config-sources command."""
+    try:
+        from scada_ids.settings import print_config_sources, AppSettings
+        
+        print("Loading configuration to track sources...")
+        
+        # Load settings to populate source tracking
+        settings = AppSettings.load_from_yaml()
+        
+        # Display configuration sources
+        print_config_sources()
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error showing configuration sources: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
+
 def main():
     """Main application entry point."""
     parser = argparse.ArgumentParser(
@@ -1478,6 +1503,8 @@ Examples:
                        help='List available configuration backups (CLI mode)')
     parser.add_argument('--config-restore', type=str, metavar='BACKUP_NAME',
                        help='Restore configuration from backup (CLI mode)')
+    parser.add_argument('--config-sources', action='store_true',
+                       help='Show where configuration values are loaded from (CLI mode)')
     
     parser.add_argument('--version', action='version', version='SCADA-IDS-KC 1.0.0')
     

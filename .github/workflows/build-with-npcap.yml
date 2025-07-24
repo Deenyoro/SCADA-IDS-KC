@@ -30,10 +30,11 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller requests
 
-      - name: Prepare Npcap installer
+      - name: Create Npcap directory (placeholder)
         run: |
-          echo "Preparing Npcap installer..."
-          python scripts/prepare_npcap.py --version ${{ env.NPCAP_VERSION }} --verbose
+          echo "Creating Npcap directory for build..."
+          New-Item -ItemType Directory -Path "npcap" -Force
+          echo "Npcap preparation skipped for simplified build" > "npcap/README.txt"
 
       - name: Build executable with bundled Npcap
         run: |

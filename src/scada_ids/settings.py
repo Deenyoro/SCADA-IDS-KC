@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 
@@ -38,6 +39,91 @@ from .sikc_config import get_sikc_config
 logger = logging.getLogger(__name__)
 
 
+class ConfigSource:
+    """Tracks the source of configuration values."""
+    
+    def __init__(self):
+        self.sources = {}  # key -> source info
+        
+    def set_source(self, key: str, source_type: str, source_path: str = None, section: str = None):
+        """Record where a configuration value came from."""
+        self.sources[key] = {
+            'type': source_type,  # 'sikc', 'yaml', 'cli', 'default', 'env'
+            'path': source_path,
+            'section': section,
+            'timestamp': time.time()
+        }
+        
+    def get_source(self, key: str) -> dict:
+        """Get source information for a configuration key."""
+        return self.sources.get(key, {'type': 'unknown', 'path': None, 'section': None})
+        
+    def get_all_sources(self) -> dict:
+        """Get all source information."""
+        return self.sources.copy()
+        
+    def print_sources(self):
+        """Print configuration sources in a user-friendly format."""
+        print("\n" + "=" * 60)
+        print("CONFIGURATION SOURCES")
+        print("=" * 60)
+        
+        by_type = {}
+        for key, info in self.sources.items():
+            source_type = info['type']
+            if source_type not in by_type:
+                by_type[source_type] = []
+            by_type[source_type].append((key, info))
+            
+        for source_type in ['sikc', 'yaml', 'cli', 'env', 'default', 'unknown']:
+            if source_type in by_type:
+                items = by_type[source_type]
+                source_name = {
+                    'sikc': 'SIKC.cfg File',
+                    'yaml': 'YAML Config File',
+                    'cli': 'Command Line Arguments', 
+                    'env': 'Environment Variables',
+                    'default': 'Default Values',
+                    'unknown': 'Unknown Source'
+                }[source_type]
+                
+                print(f"\n[{source_name}]")
+                if source_type == 'sikc':
+                    sikc_path = next((info['path'] for _, info in items if info['path']), 'SIKC.cfg')
+                    print(f"  File: {sikc_path}")
+                elif source_type == 'yaml':
+                    yaml_path = next((info['path'] for _, info in items if info['path']), 'Unknown')
+                    print(f"  File: {yaml_path}")
+                elif source_type == 'cli':
+                    print(f"  Source: Command line arguments provided when starting the application")
+                elif source_type == 'env':
+                    print(f"  Source: Environment variables")
+                elif source_type == 'default':
+                    print(f"  Source: Built-in default values")
+                    
+                for key, info in sorted(items):
+                    section_info = f" [{info['section']}]" if info['section'] else ""
+                    print(f"    {key}{section_info}")
+                    
+        print("\n" + "=" * 60)
+        print("Configuration Priority: SIKC.cfg > YAML > CLI > Environment > Defaults")
+        print("=" * 60)
+
+
+# Global config source tracker
+_config_source = ConfigSource()
+
+
+def get_config_sources():
+    """Get the global configuration source tracker."""
+    return _config_source
+
+
+def print_config_sources():
+    """Print configuration sources to console."""
+    _config_source.print_sources()
+
+
 class NetworkSettings(BaseSettings):
     """Network capture settings."""
     interface: Optional[str] = Field(None, description="Network interface to capture on")
@@ -50,17 +136,52 @@ class NetworkSettings(BaseSettings):
         # Load from SIKC.cfg first, then override with any kwargs
         try:
             sikc = get_sikc_config()
-            sikc_values = {
-                'interface': sikc.get('network', 'interface', None),
-                'bpf_filter': sikc.get('network', 'bpf_filter', "tcp and tcp[13]=2"),
-                'promiscuous_mode': sikc.get('network', 'promiscuous_mode', True),
-                'capture_timeout': sikc.get('network', 'capture_timeout', 1),
-            }
-            # Override with provided kwargs
-            sikc_values.update(kwargs)
+            sikc_path = sikc.config_file if hasattr(sikc, 'config_file') else 'SIKC.cfg'
+            
+            sikc_values = {}
+            
+            # Track sources for each setting
+            if sikc.has_option('network', 'interface'):
+                value = sikc.get('network', 'interface', None)
+                sikc_values['interface'] = value
+                _config_source.set_source('network.interface', 'sikc', sikc_path, 'network')
+            else:
+                _config_source.set_source('network.interface', 'default')
+                
+            if sikc.has_option('network', 'bpf_filter'):
+                value = sikc.get('network', 'bpf_filter', "tcp and tcp[13]=2")
+                sikc_values['bpf_filter'] = value
+                _config_source.set_source('network.bpf_filter', 'sikc', sikc_path, 'network')
+            else:
+                _config_source.set_source('network.bpf_filter', 'default')
+                
+            if sikc.has_option('network', 'promiscuous_mode'):
+                value = sikc.get('network', 'promiscuous_mode', True)
+                sikc_values['promiscuous_mode'] = value
+                _config_source.set_source('network.promiscuous_mode', 'sikc', sikc_path, 'network')
+            else:
+                _config_source.set_source('network.promiscuous_mode', 'default')
+                
+            if sikc.has_option('network', 'capture_timeout'):
+                value = sikc.get('network', 'capture_timeout', 1)
+                sikc_values['capture_timeout'] = value
+                _config_source.set_source('network.capture_timeout', 'sikc', sikc_path, 'network')
+            else:
+                _config_source.set_source('network.capture_timeout', 'default')
+            
+            # Override with provided kwargs (CLI or programmatic)
+            for key, value in kwargs.items():
+                if key in sikc_values:
+                    _config_source.set_source(f'network.{key}', 'cli')
+                sikc_values[key] = value
+                
             kwargs = sikc_values
+            
         except Exception as e:
             logger.debug(f"Could not load SIKC config for network settings: {e}")
+            # Set default sources
+            for key in ['interface', 'bpf_filter', 'promiscuous_mode', 'capture_timeout']:
+                _config_source.set_source(f'network.{key}', 'default')
         
         super().__init__(**kwargs)
         if not PYDANTIC_AVAILABLE:
@@ -387,6 +508,17 @@ class AppSettings(BaseSettings):
                         return cls()
 
                     logger.info(f"Loaded additional YAML configuration from {config_path}")
+                    
+                    # Track YAML sources
+                    def track_yaml_sources(data, prefix=""):
+                        for key, value in data.items():
+                            full_key = f"{prefix}.{key}" if prefix else key
+                            if isinstance(value, dict):
+                                track_yaml_sources(value, full_key)
+                            else:
+                                _config_source.set_source(full_key, 'yaml', str(config_path))
+                    
+                    track_yaml_sources(config_data)
 
                 except yaml.YAMLError as e:
                     logger.error(f"Error parsing YAML configuration: {e}")

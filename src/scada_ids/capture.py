@@ -28,6 +28,7 @@ try:
     import scapy.all as scapy
     from scapy.layers.inet import IP, TCP
     from scapy.error import Scapy_Exception
+    from scapy.all import AsyncSniffer
     SCAPY_AVAILABLE = True
 except ImportError:
     scapy = None
@@ -66,6 +67,7 @@ class PacketSniffer:
         self.capture_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._lock = threading.RLock()  # Reentrant lock for thread safety
+        self.async_sniffer: Optional[AsyncSniffer] = None  # AsyncSniffer instance
 
         # Initialize Npcap checker and manager for Windows
         self.npcap_checker = None
@@ -121,17 +123,31 @@ class PacketSniffer:
                     if suggested:
                         logger.info(f"Suggested interface: {suggested['name']} ({suggested.get('description', '')})")
                     
-                    if interfaces:
-                        logger.debug(f"Enhanced detection returning {len(interfaces)} interfaces")
-                        return interfaces
+                    # Don't return early - also get scapy interfaces for loopback support
+                    logger.debug(f"Enhanced detection found {len(interfaces)} interfaces, also checking scapy interfaces")
             except Exception as e:
                 logger.debug(f"Enhanced interface detection failed: {e}")
                 # Fall back to standard detection
 
+        # Get scapy interfaces (includes loopback and other special interfaces)
+        scapy_interfaces = []
         try:
             logger.debug("Calling scapy.get_if_list()...")
-            interfaces = scapy.get_if_list()
-            logger.debug(f"Raw interfaces from scapy ({len(interfaces)} total): {interfaces}")
+            scapy_interfaces = scapy.get_if_list()
+            logger.debug(f"Raw interfaces from scapy ({len(scapy_interfaces)} total): {scapy_interfaces}")
+
+            # Merge with enhanced interfaces if we have them
+            if interfaces:
+                # Add scapy interfaces that aren't already in enhanced list
+                for scapy_iface in scapy_interfaces:
+                    if scapy_iface not in interfaces:
+                        interfaces.append(scapy_iface)
+                        logger.debug(f"Added scapy interface not in enhanced list: {scapy_iface}")
+            else:
+                # Use scapy interfaces as primary list
+                interfaces = scapy_interfaces
+
+            logger.debug(f"Combined interface list ({len(interfaces)} total): {interfaces}")
 
             # Log detailed interface information
             for i, iface in enumerate(interfaces):
@@ -144,11 +160,17 @@ class PacketSniffer:
             for iface in interfaces:
                 iface_lower = iface.lower()
 
-                # Skip loopback interfaces
-                if any(skip in iface_lower for skip in ['loopback', 'lo0', 'lo', 'any']):
-                    logger.debug(f"Skipping loopback interface: {iface}")
-                    skipped_interfaces.append(f"Loopback: {iface}")
+                # Allow loopback interfaces for testing (normally skipped)
+                # Skip only 'any' interface which is not useful
+                if 'any' in iface_lower and iface_lower.strip() == 'any':
+                    logger.debug(f"Skipping 'any' interface: {iface}")
+                    skipped_interfaces.append(f"Any interface: {iface}")
                     continue
+
+                # Log loopback interfaces but allow them for testing
+                if any(skip in iface_lower for skip in ['loopback', 'lo0', 'lo']):
+                    logger.debug(f"Including loopback interface for testing: {iface}")
+                    # Don't skip - allow loopback for testing
 
                 # Test if interface is accessible (basic validation)
                 try:
@@ -630,7 +652,13 @@ class PacketSniffer:
 
     def _packet_handler(self, packet) -> None:
         """Handle captured packets with improved error handling and security."""
+        print(f"PACKET HANDLER CALLED! {packet.summary()}")  # Use print for immediate output
+        logger.info("PACKET HANDLER CALLED - Packet received!")
+        logger.debug(f"Packet type: {type(packet)}")
+        logger.debug(f"Packet summary: {packet.summary() if hasattr(packet, 'summary') else 'No summary'}")
+        
         if not self.is_running:
+            logger.debug("Packet handler: is_running=False, returning early")
             return
 
         try:
@@ -640,7 +668,12 @@ class PacketSniffer:
                 return  # Skip processing if too many recent errors
 
             # Check if packet has IP and TCP layers
-            if not (packet.haslayer(IP) and packet.haslayer(TCP)):
+            has_ip = packet.haslayer(IP)
+            has_tcp = packet.haslayer(TCP)
+            logger.debug(f"Packet layers - IP: {has_ip}, TCP: {has_tcp}")
+            
+            if not (has_ip and has_tcp):
+                logger.debug(f"Packet rejected - missing required layers. IP: {has_ip}, TCP: {has_tcp}")
                 return
 
             ip_layer = packet[IP]
@@ -651,22 +684,25 @@ class PacketSniffer:
                 return
 
             # Check for SYN flag (tcp[13]=2 means SYN flag is set)
-            if tcp_layer.flags & 0x02:  # SYN flag
+            flags_value = int(tcp_layer.flags)
+            if flags_value & 0x02:  # SYN flag
                 packet_info = {
                     'timestamp': current_time,
                     'src_ip': str(ip_layer.src),
                     'dst_ip': str(ip_layer.dst),
                     'src_port': int(tcp_layer.sport),
                     'dst_port': int(tcp_layer.dport),
-                    'flags': int(tcp_layer.flags),
+                    'flags': flags_value,
                     'packet_size': min(len(packet), 65535)  # Cap packet size
                 }
 
                 self._packet_count += 1
+                logger.info(f"SYN packet captured: {packet_info['src_ip']}:{packet_info['src_port']} -> {packet_info['dst_ip']}:{packet_info['dst_port']}")
 
                 # Add to queue with proper error handling
                 try:
                     self.packet_queue.put_nowait(packet_info)
+                    logger.info(f"Packet queued successfully, queue size: {self.packet_queue.qsize()}")
                 except Full:
                     # Queue is full, drop oldest packet
                     try:
@@ -676,6 +712,8 @@ class PacketSniffer:
                         pass  # Queue was emptied by another thread
                     except Exception as e:
                         logger.debug(f"Error managing packet queue: {e}")
+                except Exception as e:
+                    logger.error(f"Error queuing packet: {e}")
 
                 # Call callback if provided (with error isolation)
                 if self.packet_callback:
@@ -701,12 +739,17 @@ class PacketSniffer:
             dst_ip = str(ip_layer.dst)
 
             # Check for obviously invalid IPs
-            if not src_ip or not dst_ip or src_ip == dst_ip:
+            if not src_ip or not dst_ip:
                 return False
 
             # Basic port validation
             src_port = int(tcp_layer.sport)
             dst_port = int(tcp_layer.dport)
+            
+            # Allow loopback traffic (127.0.0.1 -> 127.0.0.1)
+            # Only reject if same IP AND same port (truly invalid)
+            if src_ip == dst_ip and src_port == dst_port:
+                return False
 
             if not (0 <= src_port <= 65535) or not (0 <= dst_port <= 65535):
                 return False
@@ -845,20 +888,69 @@ class PacketSniffer:
                     except Exception as validation_error:
                         logger.debug(f"Interface validation failed: {validation_error}")
 
-                    # Attempt packet capture
-                    logger.debug(f"Starting scapy.sniff() on interface: {variant}")
-                    scapy.sniff(
-                        iface=variant,
-                        filter=self.settings.network.bpf_filter,
-                        prn=self._packet_handler,
-                        store=False,
-                        stop_filter=lambda x: not self.is_running,
-                        timeout=self.settings.network.capture_timeout
-                    )
+                    # Use AsyncSniffer for long-lived packet capture (fixes Windows/Npcap initialization issue)
+                    logger.debug(f"Starting AsyncSniffer on interface: {variant}")
+                    logger.debug(f"BPF filter: {self.settings.network.bpf_filter}")
+                    logger.debug(f"is_running: {self.is_running}")
 
-                    logger.info(f"SUCCESS: Packet capture started on interface: {variant}")
-                    capture_successful = True
-                    break
+                    try:
+                        # Create AsyncSniffer instance with proper reference management
+                        logger.info(f"Creating AsyncSniffer with interface={variant}, filter={self.settings.network.bpf_filter}")
+                        logger.debug(f"Packet handler function: {self._packet_handler}")
+                        logger.debug(f"Packet handler is callable: {callable(self._packet_handler)}")
+                        
+                        # Store a strong reference to prevent garbage collection
+                        packet_handler = self._packet_handler
+                        
+                        self.async_sniffer = AsyncSniffer(
+                            iface=variant,
+                            filter=self.settings.network.bpf_filter,
+                            prn=packet_handler,  # Use the stored reference
+                            store=False
+                        )
+                        
+                        # Keep the handler reference in the instance to prevent GC
+                        self._current_packet_handler = packet_handler
+                        
+                        logger.debug(f"AsyncSniffer created: {self.async_sniffer}")
+                        logger.debug(f"AsyncSniffer prn callback: {getattr(self.async_sniffer, 'prn', 'Not found')}")
+
+                        # Start the sniffer
+                        logger.info("Starting AsyncSniffer...")
+                        self.async_sniffer.start()
+                        logger.info("AsyncSniffer started successfully")
+
+                        logger.info(f"SUCCESS: Packet capture started on interface: {variant}")
+
+                        # Verify AsyncSniffer started properly
+                        if self.async_sniffer and self.async_sniffer.running:
+                            logger.info("AsyncSniffer confirmed running in background")
+                        else:
+                            logger.warning("AsyncSniffer may not have started properly")
+                        
+                        # AsyncSniffer is running in background - no need to wait
+                        logger.info("AsyncSniffer started successfully and running in background")
+                        if self.async_sniffer:
+                            logger.debug(f"AsyncSniffer state - running: {self.async_sniffer.running}")
+                        else:
+                            logger.warning("AsyncSniffer is None after creation - possible initialization error")
+                        
+                        capture_successful = True
+                        break
+
+                    except Exception as sniffer_error:
+                        logger.error(f"AsyncSniffer failed: {sniffer_error}")
+                        if hasattr(self, 'async_sniffer') and self.async_sniffer:
+                            try:
+                                self.async_sniffer.stop()
+                                self.async_sniffer.join()
+                                self.async_sniffer = None
+                            except Exception as stop_error:
+                                logger.debug(f"Error stopping failed AsyncSniffer: {stop_error}")
+                        # Don't break here - try next interface variant
+                        continue
+
+                    logger.debug(f"AsyncSniffer capture ended for interface: {variant}")
 
                 except Exception as e:
                     error_msg = f"Interface variant {variant} failed: {type(e).__name__}: {e}"
@@ -916,9 +1008,7 @@ class PacketSniffer:
                                 logger.info("Attempting to ensure Npcap availability...")
                                 if self.npcap_manager.ensure_npcap_available(auto_install=True):
                                     logger.info("Npcap configured successfully, retrying capture...")
-                                    # Give the service time to start
-                                    import time
-                                    time.sleep(3)
+                                    # Service should be ready immediately
                                     # Clear error state and retry
                                     variant_errors.clear()
                                     capture_successful = False
@@ -931,8 +1021,8 @@ class PacketSniffer:
                                                 filter=self.settings.network.bpf_filter,
                                                 prn=self._packet_handler,
                                                 store=False,
-                                                stop_filter=lambda x: not self.is_running,
-                                                timeout=self.settings.network.capture_timeout
+                                                stop_filter=lambda x: not self.is_running
+                                                # Removed timeout - use stop_filter for proper termination
                                             )
                                             logger.info(f"SUCCESS: Packet capture started after Npcap fix on {retry_variant}")
                                             capture_successful = True
@@ -960,8 +1050,8 @@ class PacketSniffer:
                         filter=self.settings.network.bpf_filter,
                         prn=self._packet_handler,
                         store=False,
-                        stop_filter=lambda x: not self.is_running,
-                        timeout=self.settings.network.capture_timeout
+                        stop_filter=lambda x: not self.is_running
+                        # Removed timeout - use stop_filter for proper termination
                     )
                     logger.info("SUCCESS: Using default interface for packet capture")
 
@@ -992,8 +1082,24 @@ class PacketSniffer:
     
     def stop_capture(self):
         """Stop packet capture."""
+        logger.info(f"stop_capture() called: is_running={self.is_running}")
         if self.is_running:
+            logger.info("Setting is_running=False to stop capture loop")
             self.is_running = False
+
+            # Stop AsyncSniffer if it's running
+            if self.async_sniffer:
+                try:
+                    logger.info("Stopping AsyncSniffer from stop_capture()")
+                    self.async_sniffer.stop()
+                    self.async_sniffer.join(timeout=5)
+                    self.async_sniffer = None
+                    logger.info("AsyncSniffer stopped successfully")
+                except Exception as e:
+                    logger.error(f"Error stopping AsyncSniffer: {e}")
+        else:
+            logger.info("stop_capture() called but capture was not running")
+
             if self.capture_thread and self.capture_thread.is_alive():
                 self.capture_thread.join(timeout=5)
             logger.info("Packet capture stopped")

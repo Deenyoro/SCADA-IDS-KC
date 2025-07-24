@@ -241,15 +241,26 @@ class IDSController:
                 
                 try:
                     packet_info = packet_queue.get(timeout=1.0)
+                    logger.info(f"Controller: Got packet from queue, processing...")
+                    logger.debug(f"Controller: Packet info keys: {list(packet_info.keys())}")
+                    logger.debug(f"Controller: Packet info: {packet_info}")
                 except Empty:
                     continue
+                
+                # Handle packet capture for statistics
+                self._handle_packet(packet_info)
+                logger.info(f"Controller: Packet processed, total captured: {self.stats['packets_captured']}")
                 
                 # Track processing time
                 start_time = time.time()
 
                 # Validate packet before processing
+                logger.debug(f"Controller: Validating packet...")
                 if not self._validate_packet_info(packet_info):
+                    logger.warning(f"Controller: Packet validation failed!")
+                    logger.debug(f"Controller: Failed packet info: {packet_info}")
                     continue
+                logger.debug(f"Controller: Packet validation passed!")
 
                 # Log packet capture event
                 packet_id = self.stats.get('packets_processed', 0) + 1
@@ -595,10 +606,13 @@ class IDSController:
         try:
             required_fields = ['timestamp', 'src_ip', 'dst_ip', 'src_port', 'dst_port', 'packet_size', 'flags']
             
+            logger.debug(f"Validating packet with keys: {list(packet_info.keys())}")
+            
             # Check required fields
             for field in required_fields:
                 if field not in packet_info:
-                    logger.debug(f"Packet missing required field: {field}")
+                    logger.warning(f"Packet missing required field: {field}")
+                    logger.debug(f"Packet had these fields: {list(packet_info.keys())}")
                     return False
             
             # Validate timestamp

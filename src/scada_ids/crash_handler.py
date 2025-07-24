@@ -31,7 +31,8 @@ class CrashHandler:
         self.is_windows = sys.platform == "win32"
         self.is_frozen = getattr(sys, 'frozen', False)
         self.crash_dir = self._get_crash_dir()
-        self.crash_dir.mkdir(exist_ok=True)
+        # Create parent directories if they don't exist
+        self.crash_dir.mkdir(parents=True, exist_ok=True)
         
         # Install crash handler
         sys.excepthook = self.handle_exception
