@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for cross-compiling Windows executables from Linux
 # This creates a reliable environment for building Windows PE executables using Wine
 
-FROM ubuntu:22.04 as wine-base
+FROM ubuntu:24.04 as wine-base
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
