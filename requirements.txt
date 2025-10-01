@@ -20,6 +20,6 @@ pytest-qt==4.4.0
 
 # Additional dependencies
 numpy==1.26.4
-pandas==2.2.2
+pandas==2.3.3
 psutil==5.9.8
 colorlog==6.8.2
