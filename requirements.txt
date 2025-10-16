@@ -22,4 +22,4 @@ pytest-qt==4.4.0
 numpy==1.26.4
 pandas==2.2.2
 psutil==5.9.8
-colorlog==6.8.2
+colorlog==6.10.1
