@@ -1,6 +1,6 @@
 # Core dependencies with exact versions
 scapy==2.5.0
-PyQt6==6.7.0
+PyQt6==6.11.0
 scikit-learn==1.5.0
 joblib==1.5.0
 pydantic==2.7.1
