@@ -15,7 +15,7 @@ plyer==2.1.0
 # pyinstaller==6.6.0  # Use latest version instead via build script for ML library bundling fixes
 
 # Testing
-pytest==8.2.2
+pytest==9.0.3
 pytest-qt==4.4.0
 
 # Additional dependencies
